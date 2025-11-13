@@ -62,6 +62,9 @@
       {
         legacyPackages = scope.overrideScope overlay;
         packages.default = self.legacyPackages.${system}.${package};
+        devShells.default = pkgs.mkShell {
+          inputsFrom = [ self.legacyPackages.${system}.${package} ];
+        };
       }
     );
 }
