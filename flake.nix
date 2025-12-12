@@ -46,6 +46,7 @@
           "${rocq-opam}/released"
         ];
         on = opam-nix.lib.${system};
+        src = self;
         scope =
           on.buildOpamProject
             {
@@ -53,7 +54,7 @@
               resolveArgs.with-test = true;
             }
             package
-            ./.
+            src
             {
               ocaml-base-compiler = "5.3.0";
             };
