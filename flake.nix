@@ -10,7 +10,7 @@
       flake = false;
     };
     opam-nix = {
-      url = "github:tweag/opam-nix";
+      url = "github:henrytill/opam-nix/rocqpath";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.opam-repository.follows = "opam-repository";
     };
