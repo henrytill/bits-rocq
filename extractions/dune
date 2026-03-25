@@ -1,4 +1,4 @@
-(coq.extraction
+(rocq.extraction
  (prelude StackMachineExtraction)
  (extracted_modules stack_machine)
  (theories Stdlib Bits))

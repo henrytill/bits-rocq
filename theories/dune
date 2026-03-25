@@ -1,6 +1,6 @@
 (include_subdirs qualified)
 
-(coq.theory
+(rocq.theory
  (name Bits)
  (package bits-rocq)
  (theories Stdlib MenhirLib))

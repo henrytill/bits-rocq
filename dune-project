@@ -1,10 +1,10 @@
-(lang dune 3.16)
+(lang dune 3.21)
 
 (subst disabled)
 
-(using coq 0.8)
+(using rocq 0.11)
 
-(using menhir 2.1)
+(using menhir 3.0)
 
 (name bits-rocq)
 
@@ -25,7 +25,7 @@
   ocaml
   dune
   menhir
-  (coq
+  (rocq-prover
    (>= 9.0.0))
   coq-menhirlib
   (ppx_deriving

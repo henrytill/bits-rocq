@@ -9,9 +9,9 @@ homepage: "https://github.com/henrytill/bits-rocq"
 bug-reports: "https://github.com/henrytill/bits-rocq/issues"
 depends: [
   "ocaml"
-  "dune" {>= "3.16"}
+  "dune" {>= "3.21"}
   "menhir"
-  "coq" {>= "9.0.0"}
+  "rocq-prover" {>= "9.0.0"}
   "coq-menhirlib"
   "ppx_deriving" {with-test & >= "6.0.3"}
   "ppx_import" {with-test & >= "1.11.0"}
@@ -32,3 +32,4 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/henrytill/bits-rocq.git"
+x-maintenance-intent: ["(latest)"]
