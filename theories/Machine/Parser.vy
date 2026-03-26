@@ -1,6 +1,8 @@
 (* -*- mode: prog; -*- *)
 
 %{
+Set Warnings "-deprecated-from-Coq".
+
 From Bits.Machine Require Syntax.
 %}
 

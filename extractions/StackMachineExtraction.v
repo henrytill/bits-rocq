@@ -1,3 +1,5 @@
+Set Warnings "-extraction-default-directory".
+
 From Stdlib Require Extraction ExtrOcamlBasic ExtrOcamlIntConv.
 From Bits.Cpdt Require Import StackMachine.
 
