@@ -805,18 +805,19 @@ Definition bv_all_false (n : nat) : BelnapVec n :=
 (* ============================= Newtype wrappers ============================= *)
 
 Record AsTruth (n : nat) : Type :=
-  mkAsTruth {
-      unTruth :> BelnapVec n
-    }.
+  mkAsTruth { unTruth :> BelnapVec n }.
 
 Record AsKnowledge (n : nat) : Type :=
-  mkAsKnowledge {
-      unKnowledge :> BelnapVec n
-    }.
+  mkAsKnowledge { unKnowledge :> BelnapVec n }.
 
 Arguments unTruth {n} _.
 Arguments unKnowledge {n} _.
 
+(* isSub expects a two-argument eliminator (value + predicate proof), but these
+   newtypes have no proof field.  We hand-write _rect to fabricate the trivial
+   proof [isT : xpredT v].  Adding an actual [_ : xpredT] field to the record
+   doesn't help: Rocq's auto-generated eliminator is a raw [match] with "no
+   head constant", so the Sub_rect canonical projection is silently dropped. *)
 Definition AsTruth_rect n (K : AsTruth n -> Type)
   (f : forall (v : BelnapVec n) (h : xpredT v), K (@mkAsTruth n v))
   (u : AsTruth n) : K u :=
@@ -831,15 +832,10 @@ Definition AsKnowledge_rect n (K : AsKnowledge n -> Type)
   | @mkAsKnowledge _ v => f v isT
   end.
 
-HB.instance Definition _ n :=
-  @isSub.phant_Build _ _ _ (@unTruth n)
-    (fun (x : BelnapVec n) (_ : xpredT x) => @mkAsTruth n x)
-    (@AsTruth_rect n) (fun _ _ => erefl).
-
-HB.instance Definition _ n :=
-  @isSub.phant_Build _ _ _ (@unKnowledge n)
-    (fun (x : BelnapVec n) (_ : xpredT x) => @mkAsKnowledge n x)
-    (@AsKnowledge_rect n) (fun _ _ => erefl).
+HB.instance Definition _ (n : nat) :=
+  [isSub for (unTruth : AsTruth n -> _) by AsTruth_rect n].
+HB.instance Definition _ (n : nat) :=
+  [isSub for (unKnowledge : AsKnowledge n -> _) by AsKnowledge_rect n].
 
 HB.instance Definition _ n := [Countable of AsTruth n by <:].
 HB.instance Definition _ n := [Countable of AsKnowledge n by <:].
