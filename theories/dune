@@ -3,4 +3,4 @@
 (coq.theory
  (name Bits)
  (package bits-rocq)
- (theories Stdlib MenhirLib))
+ (theories Stdlib MenhirLib elpi elpi_elpi Equations HB mathcomp.boot mathcomp.order))

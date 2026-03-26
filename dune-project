@@ -1,8 +1,10 @@
-(lang dune 3.16)
+(lang dune 3.21)
 
 (subst disabled)
 
 (using coq 0.8)
+
+(warnings (deprecated_coq_lang disabled))
 
 (using menhir 2.1)
 
@@ -27,6 +29,9 @@
   menhir
   (coq
    (>= 9.0.0))
+  coq-equations
+  coq-mathcomp-boot
+  coq-mathcomp-order
   coq-menhirlib
   (ppx_deriving
    (and
