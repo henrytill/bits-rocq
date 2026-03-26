@@ -575,18 +575,6 @@ Proof. reflexivity. Qed.
 
 (* ============================= Word-level bitwise lemmas ============================= *)
 
-Lemma N_land_comm (x y : N) : N.land x y = N.land y x.
-Proof. apply N.bits_inj. intro k. rewrite !N.land_spec. btauto. Qed.
-
-Lemma N_lor_comm (x y : N) : N.lor x y = N.lor y x.
-Proof. apply N.bits_inj. intro k. rewrite !N.lor_spec. btauto. Qed.
-
-Lemma N_land_assoc (x y z : N) : N.land x (N.land y z) = N.land (N.land x y) z.
-Proof. apply N.bits_inj. intro k. rewrite !N.land_spec. btauto. Qed.
-
-Lemma N_lor_assoc (x y z : N) : N.lor x (N.lor y z) = N.lor (N.lor x y) z.
-Proof. apply N.bits_inj. intro k. rewrite !N.lor_spec. btauto. Qed.
-
 Lemma N_land_lor_diag (x y : N) : N.land x (N.lor x y) = x.
 Proof. apply N.bits_inj. intro k. rewrite N.land_spec; rewrite N.lor_spec. btauto. Qed.
 
@@ -726,21 +714,26 @@ Proof.
   rewrite Ha in Hrt. exact Hrt.
 Qed.
 
-(* ============================= Decidable equality for BVec ============================= *)
+(* ============================= Idempotence ============================= *)
 
-Definition belnap_vec_eqb {n : nat} (a b : BVec n) : bool :=
-  Vector.eqb N N.eqb a b.
-
-Lemma belnap_vec_eqP {n : nat} (a b : BVec n) :
-  reflect (a = b) (belnap_vec_eqb a b).
+Lemma vec_map2_idem {A n} (f : A -> A -> A)
+  (idem : forall x, f x x = x) (v : Vector.t A n) :
+  Vector.map2 f v v = v.
 Proof.
-  unfold belnap_vec_eqb.
-  case Heq: (Vector.eqb N N.eqb a b).
-  - apply ReflectT.
-    exact (proj1 (Vector.eqb_eq N N.eqb (fun x y => N.eqb_eq x y) _ a b) Heq).
-  - apply ReflectF. intro H. subst.
-    rewrite (proj2 (Vector.eqb_eq N N.eqb (fun x y => N.eqb_eq x y) _ b b) Logic.eq_refl) in Heq.
-    discriminate.
+  apply Vector.eq_nth_iff. intros p q <-.
+  rewrite vec_map2_nth. apply idem.
+Qed.
+
+Lemma vec_binop_storage_idem (fP fN : N -> N -> N)
+  (HfP : forall x, fP x x = x) (HfN : forall x, fN x x = x)
+  {n} (v : BVec n) : vec_binop_storage fP fN v v = v.
+Proof.
+  unfold vec_binop_storage.
+  set (wp := words_per_plane n).
+  destruct (deinterleave wp v) as [P Q] eqn:Hv.
+  rewrite (vec_map2_idem _ HfP). rewrite (vec_map2_idem _ HfN).
+  pose proof (interleave_deinterleave wp v) as Hrt.
+  rewrite Hv in Hrt. exact Hrt.
 Qed.
 
 (* ============================= countType instance for N ============================= *)
@@ -907,7 +900,7 @@ Fact truth_display : Order.disp_t. Proof. exact: (Order.Disp tt tt). Qed.
 Fact know_display  : Order.disp_t. Proof. exact: (Order.Disp tt tt). Qed.
 
 Definition truth_le {n : nat} (x y : AsTruth n) : bool :=
-  belnap_vec_eqb (bv_and (unTruth x) (unTruth y)) (unTruth x).
+  (bv_and (unTruth x) (unTruth y) == unTruth x).
 
 Definition truth_meet {n : nat} (x y : AsTruth n) : AsTruth n :=
   @mkAsTruth n (bv_and (unTruth x) (unTruth y)).
@@ -921,7 +914,7 @@ Definition truth_top (n : nat) : AsTruth n := @mkAsTruth n (bv_all_both n).
 (* ============================= Knowledge ordering ============================= *)
 
 Definition know_le {n : nat} (x y : AsKnowledge n) : bool :=
-  belnap_vec_eqb (bv_consensus (unKnowledge x) (unKnowledge y)) (unKnowledge x).
+  (bv_consensus (unKnowledge x) (unKnowledge y) == unKnowledge x).
 
 Definition know_meet {n : nat} (x y : AsKnowledge n) : AsKnowledge n :=
   @mkAsKnowledge n (bv_consensus (unKnowledge x) (unKnowledge y)).
@@ -934,45 +927,33 @@ Definition know_top (n : nat) : AsKnowledge n := @mkAsKnowledge n (bv_all_true n
 
 (* ============================= Lattice law proofs ============================= *)
 
-Lemma truth_eq_iff {n} (x y : AsTruth n) :
-  x = y <-> unTruth x = unTruth y.
-Proof.
-  split; [intros ->; reflexivity | intro h; exact (val_inj h)].
-Qed.
-
-Lemma know_eq_iff {n} (x y : AsKnowledge n) :
-  x = y <-> unKnowledge x = unKnowledge y.
-Proof.
-  split; [intros ->; reflexivity | intro h; exact (val_inj h)].
-Qed.
-
 Lemma vec_and_comm {n} (a b : BVec n) : vec_and a b = vec_and b a.
-Proof. apply vec_binop_storage_comm; exact N_land_comm. Qed.
+Proof. apply vec_binop_storage_comm; exact N.land_comm. Qed.
 
 Lemma vec_or_comm {n} (a b : BVec n) : vec_or a b = vec_or b a.
-Proof. apply vec_binop_storage_comm; exact N_lor_comm. Qed.
+Proof. apply vec_binop_storage_comm; exact N.lor_comm. Qed.
 
 Lemma vec_and_assoc {n} (a b c : BVec n) :
   vec_and a (vec_and b c) = vec_and (vec_and a b) c.
-Proof. apply vec_binop_storage_assoc; exact N_land_assoc. Qed.
+Proof. apply vec_binop_storage_assoc; exact N.land_assoc. Qed.
 
 Lemma vec_or_assoc {n} (a b c : BVec n) :
   vec_or a (vec_or b c) = vec_or (vec_or a b) c.
-Proof. apply vec_binop_storage_assoc; exact N_lor_assoc. Qed.
+Proof. apply vec_binop_storage_assoc; exact N.lor_assoc. Qed.
 
 Lemma vec_consensus_comm {n} (a b : BVec n) : vec_consensus a b = vec_consensus b a.
-Proof. apply vec_binop_storage_comm; [exact N_land_comm | exact N_lor_comm]. Qed.
+Proof. apply vec_binop_storage_comm; [exact N.land_comm | exact N.lor_comm]. Qed.
 
 Lemma vec_merge_comm {n} (a b : BVec n) : vec_merge a b = vec_merge b a.
-Proof. apply vec_binop_storage_comm; [exact N_lor_comm | exact N_land_comm]. Qed.
+Proof. apply vec_binop_storage_comm; [exact N.lor_comm | exact N.land_comm]. Qed.
 
 Lemma vec_consensus_assoc {n} (a b c : BVec n) :
   vec_consensus a (vec_consensus b c) = vec_consensus (vec_consensus a b) c.
-Proof. apply vec_binop_storage_assoc; [exact N_land_assoc | exact N_lor_assoc]. Qed.
+Proof. apply vec_binop_storage_assoc; [exact N.land_assoc | exact N.lor_assoc]. Qed.
 
 Lemma vec_merge_assoc {n} (a b c : BVec n) :
   vec_merge a (vec_merge b c) = vec_merge (vec_merge a b) c.
-Proof. apply vec_binop_storage_assoc; [exact N_lor_assoc | exact N_land_assoc]. Qed.
+Proof. apply vec_binop_storage_assoc; [exact N.lor_assoc | exact N.land_assoc]. Qed.
 
 Lemma vec_and_vec_or_abs {n} (a b : BVec n) : vec_and a (vec_or a b) = a.
 Proof. exact (vec_binop_storage_absorb_land a b). Qed.
@@ -988,140 +969,119 @@ Lemma vec_merge_vec_consensus_abs {n} (a b : BVec n) :
   vec_merge a (vec_consensus a b) = a.
 Proof. exact (vec_binop_storage_absorb_lor_land_mixed a b). Qed.
 
-(* ============================= BelnapVec equality ============================= *)
+Lemma vec_and_idem {n} (v : BVec n) : vec_and v v = v.
+Proof. exact (vec_binop_storage_idem _ _ N.land_diag N.land_diag v). Qed.
 
-Lemma belnap_vec_eq_iff {n} (a b : BelnapVec n) :
-  a = b <-> bv_val a = bv_val b.
-Proof. split; [intros ->; reflexivity | intro h; exact (val_inj h)]. Qed.
+Lemma vec_consensus_idem {n} (v : BVec n) : vec_consensus v v = v.
+Proof. exact (vec_binop_storage_idem _ _ N.land_diag N.lor_diag v). Qed.
 
 (* ============================= BelnapVec algebraic laws ============================= *)
 
+Lemma bv_and_idem {n} (x : BelnapVec n) : bv_and x x = x.
+Proof. apply val_inj. apply vec_and_idem. Qed.
+
+Lemma bv_consensus_idem {n} (x : BelnapVec n) : bv_consensus x x = x.
+Proof. apply val_inj. apply vec_consensus_idem. Qed.
+
 Lemma bv_and_comm {n} (a b : BelnapVec n) : bv_and a b = bv_and b a.
-Proof. apply belnap_vec_eq_iff. apply vec_and_comm. Qed.
+Proof. apply val_inj. apply vec_and_comm. Qed.
 
 Lemma bv_or_comm {n} (a b : BelnapVec n) : bv_or a b = bv_or b a.
-Proof. apply belnap_vec_eq_iff. apply vec_or_comm. Qed.
+Proof. apply val_inj. apply vec_or_comm. Qed.
 
 Lemma bv_consensus_comm {n} (a b : BelnapVec n) : bv_consensus a b = bv_consensus b a.
-Proof. apply belnap_vec_eq_iff. apply vec_consensus_comm. Qed.
+Proof. apply val_inj. apply vec_consensus_comm. Qed.
 
 Lemma bv_merge_comm {n} (a b : BelnapVec n) : bv_merge a b = bv_merge b a.
-Proof. apply belnap_vec_eq_iff. apply vec_merge_comm. Qed.
+Proof. apply val_inj. apply vec_merge_comm. Qed.
 
 Lemma bv_and_assoc {n} (a b c : BelnapVec n) :
   bv_and a (bv_and b c) = bv_and (bv_and a b) c.
-Proof. apply belnap_vec_eq_iff. simpl. apply vec_and_assoc. Qed.
+Proof. apply val_inj. simpl. apply vec_and_assoc. Qed.
 
 Lemma bv_or_assoc {n} (a b c : BelnapVec n) :
   bv_or a (bv_or b c) = bv_or (bv_or a b) c.
-Proof. apply belnap_vec_eq_iff. simpl. apply vec_or_assoc. Qed.
+Proof. apply val_inj. simpl. apply vec_or_assoc. Qed.
 
 Lemma bv_consensus_assoc {n} (a b c : BelnapVec n) :
   bv_consensus a (bv_consensus b c) = bv_consensus (bv_consensus a b) c.
-Proof. apply belnap_vec_eq_iff. simpl. apply vec_consensus_assoc. Qed.
+Proof. apply val_inj. simpl. apply vec_consensus_assoc. Qed.
 
 Lemma bv_merge_assoc {n} (a b c : BelnapVec n) :
   bv_merge a (bv_merge b c) = bv_merge (bv_merge a b) c.
-Proof. apply belnap_vec_eq_iff. simpl. apply vec_merge_assoc. Qed.
+Proof. apply val_inj. simpl. apply vec_merge_assoc. Qed.
 
 Lemma bv_and_or_abs {n} (a b : BelnapVec n) : bv_and a (bv_or a b) = a.
-Proof. apply belnap_vec_eq_iff. simpl. apply vec_and_vec_or_abs. Qed.
+Proof. apply val_inj. simpl. apply vec_and_vec_or_abs. Qed.
 
 Lemma bv_or_and_abs {n} (a b : BelnapVec n) : bv_or a (bv_and a b) = a.
-Proof. apply belnap_vec_eq_iff. simpl. apply vec_or_vec_and_abs. Qed.
+Proof. apply val_inj. simpl. apply vec_or_vec_and_abs. Qed.
 
 Lemma bv_consensus_merge_abs {n} (a b : BelnapVec n) :
   bv_consensus a (bv_merge a b) = a.
-Proof. apply belnap_vec_eq_iff. simpl. apply vec_consensus_vec_merge_abs. Qed.
+Proof. apply val_inj. simpl. apply vec_consensus_vec_merge_abs. Qed.
 
 Lemma bv_merge_consensus_abs {n} (a b : BelnapVec n) :
   bv_merge a (bv_consensus a b) = a.
-Proof. apply belnap_vec_eq_iff. simpl. apply vec_merge_vec_consensus_abs. Qed.
+Proof. apply val_inj. simpl. apply vec_merge_vec_consensus_abs. Qed.
 
 Lemma bv_and_all_unknown_l {n} (x : BelnapVec n) :
   bv_and (bv_all_unknown n) x = bv_all_unknown n.
-Proof. apply belnap_vec_eq_iff. simpl. apply vec_and_all_unknown_l. Qed.
+Proof. apply val_inj. simpl. apply vec_and_all_unknown_l. Qed.
 
 Lemma bv_and_all_both_r {n} (x : BelnapVec n) :
   bv_and x (bv_all_both n) = x.
-Proof. apply belnap_vec_eq_iff. simpl. apply vec_and_all_both_r. exact (valP x). Qed.
+Proof. apply val_inj. simpl. apply vec_and_all_both_r. exact (valP x). Qed.
 
 Lemma bv_consensus_all_false_l {n} (x : BelnapVec n) :
   bv_consensus (bv_all_false n) x = bv_all_false n.
-Proof. apply belnap_vec_eq_iff. simpl. apply vec_consensus_all_false_l. exact (valP x). Qed.
+Proof. apply val_inj. simpl. apply vec_consensus_all_false_l. exact (valP x). Qed.
 
 Lemma bv_consensus_all_true_r {n} (x : BelnapVec n) :
   bv_consensus x (bv_all_true n) = x.
-Proof. apply belnap_vec_eq_iff. simpl. apply vec_consensus_all_true_r. exact (valP x). Qed.
+Proof. apply val_inj. simpl. apply vec_consensus_all_true_r. exact (valP x). Qed.
 
 (* ============================= Order proofs ============================= *)
 
 Lemma truth_le_refl {n} (x : AsTruth n) : truth_le x x.
-Proof.
-  unfold truth_le.
-  apply/belnap_vec_eqP.
-  simpl. unfold vec_and, vec_binop_storage.
-  set (wp := words_per_plane n).
-  destruct (deinterleave wp (unTruth x)) as [P Q] eqn:Hx.
-  pose proof (interleave_deinterleave wp (unTruth x)) as Hrt.
-  rewrite Hx in Hrt.
-  have HlP : Vector.map2 N.land P P = P.
-  { apply Vector.eq_nth_iff. intros i j <-.
-    rewrite vec_map2_nth. apply N.land_diag. }
-  have HlQ : Vector.map2 N.land Q Q = Q.
-  { apply Vector.eq_nth_iff. intros i j <-.
-    rewrite vec_map2_nth. apply N.land_diag. }
-  rewrite HlP. rewrite HlQ. exact Hrt.
-Qed.
+Proof. apply/eqP. apply bv_and_idem. Qed.
 
 Lemma truth_le_anti {n} : antisymmetric (@truth_le n).
 Proof.
-  move=> x y /andP [/belnap_vec_eqP Hxy /belnap_vec_eqP Hyx].
-  apply truth_eq_iff.
-  have Hxy' := proj2 (belnap_vec_eq_iff _ _) Hxy.
-  have Hyx' := proj2 (belnap_vec_eq_iff _ _) Hyx.
-  rewrite -Hxy' bv_and_comm. exact Hyx'.
+  move=> x y /andP [/eqP Hxy /eqP Hyx].
+  have : unTruth x = unTruth y by rewrite -Hxy bv_and_comm.
+  exact: val_inj.
 Qed.
 
 Lemma truth_le_trans {n} : transitive (@truth_le n).
 Proof.
-  move=> y x z /belnap_vec_eqP Hxy /belnap_vec_eqP Hyz.
-  have Hxy' := proj2 (belnap_vec_eq_iff _ _) Hxy.
-  have Hyz' := proj2 (belnap_vec_eq_iff _ _) Hyz.
-  apply/belnap_vec_eqP. apply belnap_vec_eq_iff.
-  rewrite -{1}Hxy' -bv_and_assoc Hyz'. exact Hxy'.
+  move=> y x z /eqP Hxy /eqP Hyz.
+  apply/eqP. rewrite -{1}(Hxy) -bv_and_assoc Hyz. exact Hxy.
 Qed.
 
 Lemma truth_leEmeet {n} (x y : AsTruth n) :
   truth_le x y = (truth_meet x y == x).
-Proof.
-  unfold truth_le, truth_meet.
-  apply/idP/eqP.
-  - move/belnap_vec_eqP => H.
-    apply truth_eq_iff. exact (proj2 (belnap_vec_eq_iff _ _) H).
-  - move=> H. apply/belnap_vec_eqP.
-    apply (belnap_vec_eq_iff _ _). exact (proj1 (truth_eq_iff _ _) H).
-Qed.
+Proof. reflexivity. Qed.
 
 (* ============================= MathComp HB lattice instances for AsTruth ============================= *)
 
 Lemma truth_meetC {n} : commutative (@truth_meet n).
-Proof. intros x y. apply truth_eq_iff. apply bv_and_comm. Qed.
+Proof. intros x y. apply val_inj. apply bv_and_comm. Qed.
 
 Lemma truth_joinC {n} : commutative (@truth_join n).
-Proof. intros x y. apply truth_eq_iff. apply bv_or_comm. Qed.
+Proof. intros x y. apply val_inj. apply bv_or_comm. Qed.
 
 Lemma truth_meetA {n} : associative (@truth_meet n).
-Proof. intros x y z. apply truth_eq_iff. simpl. apply bv_and_assoc. Qed.
+Proof. intros x y z. apply val_inj. simpl. apply bv_and_assoc. Qed.
 
 Lemma truth_joinA {n} : associative (@truth_join n).
-Proof. intros x y z. apply truth_eq_iff. simpl. apply bv_or_assoc. Qed.
+Proof. intros x y z. apply val_inj. simpl. apply bv_or_assoc. Qed.
 
 Lemma truth_joinKI {n} (y x : AsTruth n) : truth_meet x (truth_join x y) = x.
-Proof. apply truth_eq_iff. simpl. apply bv_and_or_abs. Qed.
+Proof. apply val_inj. simpl. apply bv_and_or_abs. Qed.
 
 Lemma truth_meetKU {n} (y x : AsTruth n) : truth_join x (truth_meet x y) = x.
-Proof. apply truth_eq_iff. simpl. apply bv_or_and_abs. Qed.
+Proof. apply val_inj. simpl. apply bv_or_and_abs. Qed.
 
 HB.instance Definition _ (n : nat) :=
   Order.Le_isPOrder.Build truth_display (AsTruth n)
@@ -1135,16 +1095,10 @@ HB.instance Definition _ (n : nat) :=
     (@truth_leEmeet n).
 
 Lemma truth_le0x {n} (x : AsTruth n) : truth_le (truth_bot n) x.
-Proof.
-  unfold truth_le, truth_bot. apply/belnap_vec_eqP.
-  apply belnap_vec_eq_iff. simpl. apply bv_and_all_unknown_l.
-Qed.
+Proof. apply/eqP. apply bv_and_all_unknown_l. Qed.
 
 Lemma truth_lex1 {n} (x : AsTruth n) : truth_le x (truth_top n).
-Proof.
-  unfold truth_le, truth_top. apply/belnap_vec_eqP.
-  apply belnap_vec_eq_iff. simpl. apply bv_and_all_both_r.
-Qed.
+Proof. apply/eqP. apply bv_and_all_both_r. Qed.
 
 HB.instance Definition _ (n : nat) :=
   Order.hasBottom.Build truth_display (AsTruth n) (@truth_le0x n).
@@ -1155,79 +1109,48 @@ HB.instance Definition _ (n : nat) :=
 (* ============================= Knowledge ordering proofs ============================= *)
 
 Lemma know_le_refl {n} (x : AsKnowledge n) : know_le x x.
-Proof.
-  unfold know_le.
-  apply/belnap_vec_eqP.
-  simpl. unfold vec_consensus, vec_binop_storage.
-  set (wp := words_per_plane n).
-  destruct (deinterleave wp (unKnowledge x)) as [P Q] eqn:Hx.
-  have HlP : Vector.map2 N.land P P = P.
-  { apply Vector.eq_nth_iff. intros i j <-. rewrite vec_map2_nth. apply N.land_diag. }
-  have HlQ : Vector.map2 N.lor Q Q = Q.
-  { apply Vector.eq_nth_iff. intros i j <-. rewrite vec_map2_nth. apply N.lor_diag. }
-  pose proof (interleave_deinterleave wp (unKnowledge x)) as Hrt.
-  rewrite Hx in Hrt.
-  rewrite HlP. rewrite HlQ. exact Hrt.
-Qed.
+Proof. apply/eqP. apply bv_consensus_idem. Qed.
 
 Lemma know_le_anti {n} : antisymmetric (@know_le n).
 Proof.
-  move=> x y /andP [/belnap_vec_eqP Hxy /belnap_vec_eqP Hyx].
-  apply know_eq_iff.
-  have Hxy' := proj2 (belnap_vec_eq_iff _ _) Hxy.
-  have Hyx' := proj2 (belnap_vec_eq_iff _ _) Hyx.
-  rewrite -Hxy' bv_consensus_comm. exact Hyx'.
+  move=> x y /andP [/eqP Hxy /eqP Hyx].
+  have : unKnowledge x = unKnowledge y by rewrite -Hxy bv_consensus_comm.
+  exact: val_inj.
 Qed.
 
 Lemma know_le_trans {n} : transitive (@know_le n).
 Proof.
-  move=> y x z /belnap_vec_eqP Hxy /belnap_vec_eqP Hyz.
-  have Hxy' := proj2 (belnap_vec_eq_iff _ _) Hxy.
-  have Hyz' := proj2 (belnap_vec_eq_iff _ _) Hyz.
-  apply/belnap_vec_eqP. apply belnap_vec_eq_iff.
-  rewrite -{1}Hxy' -bv_consensus_assoc Hyz'. exact Hxy'.
+  move=> y x z /eqP Hxy /eqP Hyz.
+  apply/eqP. rewrite -{1}(Hxy) -bv_consensus_assoc Hyz. exact Hxy.
 Qed.
 
 Lemma know_leEmeet {n} (x y : AsKnowledge n) :
   know_le x y = (know_meet x y == x).
-Proof.
-  unfold know_le, know_meet.
-  apply/idP/eqP.
-  - move/belnap_vec_eqP => H.
-    apply know_eq_iff. exact (proj2 (belnap_vec_eq_iff _ _) H).
-  - move=> H. apply/belnap_vec_eqP.
-    apply (belnap_vec_eq_iff _ _). exact (proj1 (know_eq_iff _ _) H).
-Qed.
+Proof. reflexivity. Qed.
 
 Lemma know_meetC {n} : commutative (@know_meet n).
-Proof. intros x y. apply know_eq_iff. apply bv_consensus_comm. Qed.
+Proof. intros x y. apply val_inj. apply bv_consensus_comm. Qed.
 
 Lemma know_joinC {n} : commutative (@know_join n).
-Proof. intros x y. apply know_eq_iff. apply bv_merge_comm. Qed.
+Proof. intros x y. apply val_inj. apply bv_merge_comm. Qed.
 
 Lemma know_meetA {n} : associative (@know_meet n).
-Proof. intros x y z. apply know_eq_iff. simpl. apply bv_consensus_assoc. Qed.
+Proof. intros x y z. apply val_inj. simpl. apply bv_consensus_assoc. Qed.
 
 Lemma know_joinA {n} : associative (@know_join n).
-Proof. intros x y z. apply know_eq_iff. simpl. apply bv_merge_assoc. Qed.
+Proof. intros x y z. apply val_inj. simpl. apply bv_merge_assoc. Qed.
 
 Lemma know_joinKI {n} (y x : AsKnowledge n) : know_meet x (know_join x y) = x.
-Proof. apply know_eq_iff. simpl. apply bv_consensus_merge_abs. Qed.
+Proof. apply val_inj. simpl. apply bv_consensus_merge_abs. Qed.
 
 Lemma know_meetKU {n} (y x : AsKnowledge n) : know_join x (know_meet x y) = x.
-Proof. apply know_eq_iff. simpl. apply bv_merge_consensus_abs. Qed.
+Proof. apply val_inj. simpl. apply bv_merge_consensus_abs. Qed.
 
 Lemma know_le0x {n} (x : AsKnowledge n) : know_le (know_bot n) x.
-Proof.
-  unfold know_le, know_bot. apply/belnap_vec_eqP.
-  apply belnap_vec_eq_iff. simpl. apply bv_consensus_all_false_l.
-Qed.
+Proof. apply/eqP. apply bv_consensus_all_false_l. Qed.
 
 Lemma know_lex1 {n} (x : AsKnowledge n) : know_le x (know_top n).
-Proof.
-  unfold know_le, know_top. apply/belnap_vec_eqP.
-  apply belnap_vec_eq_iff. simpl. apply bv_consensus_all_true_r.
-Qed.
+Proof. apply/eqP. apply bv_consensus_all_true_r. Qed.
 
 HB.instance Definition _ (n : nat) :=
   Order.Le_isPOrder.Build know_display (AsKnowledge n)
