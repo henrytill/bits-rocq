@@ -191,14 +191,11 @@ Qed.
 Lemma interleave_deinterleave {A : Type} (n : nat) (v : Vector.t A (double n)) :
   let '(e, o) := deinterleave n v in interleave n e o = v.
 Proof.
-  induction n as [| n' IH].
+  funelim (deinterleave n v).
   - depelim v. simp deinterleave interleave. reflexivity.
-  - depelim v. depelim v.
-    simp deinterleave.
-    specialize (IH v).
-    destruct (deinterleave n' v) as [evens odds].
-    simpl. simp interleave. simpl in IH.
-    rewrite IH. reflexivity.
+  - simp deinterleave.
+    destruct (deinterleave _ rest) as [evens odds].
+    simp interleave. simpl in H. rewrite H. reflexivity.
 Qed.
 
 (** Deinterleaving a constant vector yields two copies. *)
@@ -385,17 +382,16 @@ Lemma vec_all_deinterleave {A : Type} (n : nat) (p : A -> bool) (v : Vector.t A 
   vec_all p v = true ->
   vec_all p (fst (deinterleave n v)) = true /\ vec_all p (snd (deinterleave n v)) = true.
 Proof.
-  induction n as [|n' IH]; intro Hv.
-  - depelim v. simp deinterleave. split; reflexivity.
-  - depelim v. rename h into a. depelim v. rename h into b.
-    simp deinterleave.
-    simpl in Hv.
-    apply andb_prop in Hv. destruct Hv as [Ha Hv].
-    apply andb_prop in Hv. destruct Hv as [Hb Hv].
-    specialize (IH _ Hv).
-    destruct (deinterleave n' v) as [evens odds] eqn:Hdv. simpl in *.
-    destruct IH as [IHe IHo].
-    split; simpl; rewrite ?Ha ?Hb; simpl; assumption.
+  funelim (deinterleave n v); simp deinterleave; intro Hv.
+  - split; reflexivity.
+  - simpl in Hv.
+    apply andb_prop in Hv as [He Hv].
+    apply andb_prop in Hv as [Ho Hv].
+    specialize (H p Hv).
+    destruct (deinterleave _ rest) as [evens odds]. simpl in *.
+    destruct H as [IHe IHo].
+    split. { simpl. rewrite He. simpl. assumption. }
+    { simpl. rewrite Ho. simpl. assumption. }
 Qed.
 
 (* --- bv_bounded for constants --- *)
@@ -600,18 +596,12 @@ Proof.
   rewrite !vec_map2_nth. apply assoc.
 Qed.
 
-Lemma vec_map2_absorb_land_lor {n} (a b : Vector.t N n) :
-  Vector.map2 N.land a (Vector.map2 N.lor a b) = a.
+Lemma vec_map2_absorb {A n} (f g : A -> A -> A)
+  (abs : forall a b, f a (g a b) = a) (a b : Vector.t A n) :
+  Vector.map2 f a (Vector.map2 g a b) = a.
 Proof.
   apply Vector.eq_nth_iff. intros p q <-.
-  rewrite !vec_map2_nth. apply N_land_lor_diag.
-Qed.
-
-Lemma vec_map2_absorb_lor_land {n} (a b : Vector.t N n) :
-  Vector.map2 N.lor a (Vector.map2 N.land a b) = a.
-Proof.
-  apply Vector.eq_nth_iff. intros p q <-.
-  rewrite !vec_map2_nth. apply N_lor_land_diag.
+  rewrite !vec_map2_nth. apply abs.
 Qed.
 
 (* ============================= vec_binop_storage structural lemmas ============================= *)
@@ -658,58 +648,18 @@ Proof.
   f_equal; [apply vec_map2_assoc; exact assocP | apply vec_map2_assoc; exact assocN].
 Qed.
 
-(** Absorption: fP1 (fP1 a x) (fP2 (fP2 a y) z) = fP1 a x — specialized forms *)
-Lemma vec_binop_storage_absorb_land {n} (a b : BVec n) :
-  vec_binop_storage N.land N.land a (vec_binop_storage N.lor N.lor a b) = a.
+Lemma vec_binop_storage_absorb {n} (fP1 fN1 fP2 fN2 : N -> N -> N)
+  (HabsP : forall a b, fP1 a (fP2 a b) = a)
+  (HabsN : forall a b, fN1 a (fN2 a b) = a)
+  (a b : BVec n) :
+  vec_binop_storage fP1 fN1 a (vec_binop_storage fP2 fN2 a b) = a.
 Proof.
   unfold vec_binop_storage.
   set (wp := words_per_plane n).
   destruct (deinterleave wp a) as [aP aN] eqn:Ha.
-  destruct (deinterleave wp b) as [bP bN] eqn:Hb.
-  rewrite (deinterleave_interleave wp (Vector.map2 N.lor aP bP) (Vector.map2 N.lor aN bN)).
-  rewrite !vec_map2_absorb_land_lor.
-  pose proof (interleave_deinterleave wp a) as Hrt.
-  rewrite Ha in Hrt. exact Hrt.
-Qed.
-
-Lemma vec_binop_storage_absorb_lor {n} (a b : BVec n) :
-  vec_binop_storage N.lor N.lor a (vec_binop_storage N.land N.land a b) = a.
-Proof.
-  unfold vec_binop_storage.
-  set (wp := words_per_plane n).
-  destruct (deinterleave wp a) as [aP aN] eqn:Ha.
-  destruct (deinterleave wp b) as [bP bN] eqn:Hb.
-  rewrite (deinterleave_interleave wp (Vector.map2 N.land aP bP) (Vector.map2 N.land aN bN)).
-  rewrite !vec_map2_absorb_lor_land.
-  pose proof (interleave_deinterleave wp a) as Hrt.
-  rewrite Ha in Hrt. exact Hrt.
-Qed.
-
-(** Cross-absorption for Consensus/Merge *)
-Lemma vec_binop_storage_absorb_land_lor_mixed {n} (a b : BVec n) :
-  vec_binop_storage N.land N.lor a (vec_binop_storage N.lor N.land a b) = a.
-Proof.
-  unfold vec_binop_storage.
-  set (wp := words_per_plane n).
-  destruct (deinterleave wp a) as [aP aN] eqn:Ha.
-  destruct (deinterleave wp b) as [bP bN] eqn:Hb.
-  rewrite (deinterleave_interleave wp (Vector.map2 N.lor aP bP) (Vector.map2 N.land aN bN)).
-  rewrite vec_map2_absorb_land_lor.
-  rewrite vec_map2_absorb_lor_land.
-  pose proof (interleave_deinterleave wp a) as Hrt.
-  rewrite Ha in Hrt. exact Hrt.
-Qed.
-
-Lemma vec_binop_storage_absorb_lor_land_mixed {n} (a b : BVec n) :
-  vec_binop_storage N.lor N.land a (vec_binop_storage N.land N.lor a b) = a.
-Proof.
-  unfold vec_binop_storage.
-  set (wp := words_per_plane n).
-  destruct (deinterleave wp a) as [aP aN] eqn:Ha.
-  destruct (deinterleave wp b) as [bP bN] eqn:Hb.
-  rewrite (deinterleave_interleave wp (Vector.map2 N.land aP bP) (Vector.map2 N.lor aN bN)).
-  rewrite vec_map2_absorb_lor_land.
-  rewrite vec_map2_absorb_land_lor.
+  destruct (deinterleave wp b) as [bP bN].
+  rewrite (deinterleave_interleave wp _ _).
+  rewrite (vec_map2_absorb _ _ HabsP). rewrite (vec_map2_absorb _ _ HabsN).
   pose proof (interleave_deinterleave wp a) as Hrt.
   rewrite Ha in Hrt. exact Hrt.
 Qed.
@@ -956,18 +906,18 @@ Lemma vec_merge_assoc {n} (a b c : BVec n) :
 Proof. apply vec_binop_storage_assoc; [exact N.lor_assoc | exact N.land_assoc]. Qed.
 
 Lemma vec_and_vec_or_abs {n} (a b : BVec n) : vec_and a (vec_or a b) = a.
-Proof. exact (vec_binop_storage_absorb_land a b). Qed.
+Proof. apply vec_binop_storage_absorb; exact N_land_lor_diag. Qed.
 
 Lemma vec_or_vec_and_abs {n} (a b : BVec n) : vec_or a (vec_and a b) = a.
-Proof. exact (vec_binop_storage_absorb_lor a b). Qed.
+Proof. apply vec_binop_storage_absorb; exact N_lor_land_diag. Qed.
 
 Lemma vec_consensus_vec_merge_abs {n} (a b : BVec n) :
   vec_consensus a (vec_merge a b) = a.
-Proof. exact (vec_binop_storage_absorb_land_lor_mixed a b). Qed.
+Proof. apply vec_binop_storage_absorb; [exact N_land_lor_diag | exact N_lor_land_diag]. Qed.
 
 Lemma vec_merge_vec_consensus_abs {n} (a b : BVec n) :
   vec_merge a (vec_consensus a b) = a.
-Proof. exact (vec_binop_storage_absorb_lor_land_mixed a b). Qed.
+Proof. apply vec_binop_storage_absorb; [exact N_lor_land_diag | exact N_land_lor_diag]. Qed.
 
 Lemma vec_and_idem {n} (v : BVec n) : vec_and v v = v.
 Proof. exact (vec_binop_storage_idem _ _ N.land_diag N.land_diag v). Qed.
