@@ -167,16 +167,14 @@ Next Obligation. unfold storage_size. rewrite double_eq_mul2. rewrite <- Hnw. li
 (** Split a vector of length [double n] into its even- and odd-indexed elements.
     Because [double (S n') ≡ S (S (double n'))], Equations can directly pattern-match
     the first two elements without any [eq_rect] cast. *)
-Equations deinterleave {A : Type} (n : nat) (v : Vector.t A (double n))
-  : Vector.t A n * Vector.t A n :=
+Equations deinterleave {A : Type} (n : nat) (v : Vector.t A (double n)) : Vector.t A n * Vector.t A n :=
   deinterleave 0 _ := ([], []);
   deinterleave (S n') (e :: o :: rest) :=
     let '(evens, odds) := deinterleave n' rest in
     (e :: evens, o :: odds).
 
 (** Interleave two vectors of the same length into a single vector of [double] length. *)
-Equations interleave {A : Type} (n : nat) (evens odds : Vector.t A n)
-  : Vector.t A (double n) :=
+Equations interleave {A : Type} (n : nat) (evens odds : Vector.t A n) : Vector.t A (double n) :=
   interleave 0 [] [] := [];
   interleave (S n') (e :: es) (o :: os) := e :: o :: interleave n' es os.
 
@@ -193,9 +191,8 @@ Lemma interleave_deinterleave {A : Type} (n : nat) (v : Vector.t A (double n)) :
 Proof.
   funelim (deinterleave n v).
   - depelim v. simp deinterleave interleave. reflexivity.
-  - simp deinterleave.
-    destruct (deinterleave _ rest) as [evens odds].
-    simp interleave. simpl in H. rewrite H. reflexivity.
+  - destruct (deinterleave _ rest) as [evens odds].
+    simp interleave. rewrite H. reflexivity.
 Qed.
 
 (** Deinterleaving a constant vector yields two copies. *)
@@ -832,10 +829,8 @@ Definition AsKnowledge_rect n (K : AsKnowledge n -> Type)
   | @mkAsKnowledge _ v => f v isT
   end.
 
-HB.instance Definition _ (n : nat) :=
-  [isSub for (unTruth : AsTruth n -> _) by AsTruth_rect n].
-HB.instance Definition _ (n : nat) :=
-  [isSub for (unKnowledge : AsKnowledge n -> _) by AsKnowledge_rect n].
+HB.instance Definition _ n := [isSub for (unTruth : AsTruth n -> _) by AsTruth_rect n].
+HB.instance Definition _ n := [isSub for (unKnowledge : AsKnowledge n -> _) by AsKnowledge_rect n].
 
 HB.instance Definition _ n := [Countable of AsTruth n by <:].
 HB.instance Definition _ n := [Countable of AsKnowledge n by <:].
@@ -879,12 +874,10 @@ Proof. apply vec_binop_storage_comm; exact N.land_comm. Qed.
 Lemma vec_or_comm {n} (a b : BVec n) : vec_or a b = vec_or b a.
 Proof. apply vec_binop_storage_comm; exact N.lor_comm. Qed.
 
-Lemma vec_and_assoc {n} (a b c : BVec n) :
-  vec_and a (vec_and b c) = vec_and (vec_and a b) c.
+Lemma vec_and_assoc {n} (a b c : BVec n) : vec_and a (vec_and b c) = vec_and (vec_and a b) c.
 Proof. apply vec_binop_storage_assoc; exact N.land_assoc. Qed.
 
-Lemma vec_or_assoc {n} (a b c : BVec n) :
-  vec_or a (vec_or b c) = vec_or (vec_or a b) c.
+Lemma vec_or_assoc {n} (a b c : BVec n) : vec_or a (vec_or b c) = vec_or (vec_or a b) c.
 Proof. apply vec_binop_storage_assoc; exact N.lor_assoc. Qed.
 
 Lemma vec_consensus_comm {n} (a b : BVec n) : vec_consensus a b = vec_consensus b a.
@@ -907,12 +900,10 @@ Proof. apply vec_binop_storage_absorb; exact N_land_lor_diag. Qed.
 Lemma vec_or_vec_and_abs {n} (a b : BVec n) : vec_or a (vec_and a b) = a.
 Proof. apply vec_binop_storage_absorb; exact N_lor_land_diag. Qed.
 
-Lemma vec_consensus_vec_merge_abs {n} (a b : BVec n) :
-  vec_consensus a (vec_merge a b) = a.
+Lemma vec_consensus_vec_merge_abs {n} (a b : BVec n) : vec_consensus a (vec_merge a b) = a.
 Proof. apply vec_binop_storage_absorb; [exact N_land_lor_diag | exact N_lor_land_diag]. Qed.
 
-Lemma vec_merge_vec_consensus_abs {n} (a b : BVec n) :
-  vec_merge a (vec_consensus a b) = a.
+Lemma vec_merge_vec_consensus_abs {n} (a b : BVec n) : vec_merge a (vec_consensus a b) = a.
 Proof. apply vec_binop_storage_absorb; [exact N_lor_land_diag | exact N_land_lor_diag]. Qed.
 
 Lemma vec_and_idem {n} (v : BVec n) : vec_and v v = v.
