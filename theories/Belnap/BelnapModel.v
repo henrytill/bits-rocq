@@ -64,14 +64,7 @@ Proof. unfold fin_val. rewrite Fin.to_nat_of_nat. reflexivity. Qed.
 
 Lemma fin_val_inj {m : nat} (a b : Fin.t m) :
   fin_val a = fin_val b -> a = b.
-Proof.
-  unfold fin_val. intro H.
-  apply Fin.to_nat_inj.
-  destruct (Fin.to_nat a) as [va Ha], (Fin.to_nat b) as [vb Hb].
-  simpl in H. subst vb.
-  replace Hb with Ha by apply le_unique.
-  reflexivity.
-Qed.
+Proof. exact (Fin.to_nat_inj a b). Qed.
 
 (* ============================= Encoding / decoding ============================= *)
 
@@ -287,14 +280,7 @@ Qed.
 Lemma vec_map2_nth {A B C n} (f : A -> B -> C)
   (a : Vector.t A n) (b : Vector.t B n) (i : Fin.t n) :
   Vector.nth (Vector.map2 f a b) i = f (Vector.nth a i) (Vector.nth b i).
-Proof.
-  induction n as [| n' IH].
-  - inversion i.
-  - rewrite (Vector.eta a). rewrite (Vector.eta b).
-    apply (Fin.caseS' i).
-    + reflexivity.
-    + intros j. simpl. apply IH.
-Qed.
+Proof. exact (VectorSpec.nth_map2 f a b i i i Logic.eq_refl Logic.eq_refl). Qed.
 
 (* ============================= Bulk operations ============================= *)
 

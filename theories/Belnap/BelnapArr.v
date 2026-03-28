@@ -130,21 +130,15 @@ Section WithBound.
 
   (* ============================= Constants ============================= *)
 
-  Lemma make_length :
-    length (make (of_nat (storage_size n)) 0%N) = of_nat (storage_size n).
-  Proof.
-    rewrite length_make_. rewrite size_fits_leb. reflexivity.
-  Qed.
-
-  Definition ba_all_unknown : BelnapArr :=
-    mkBelnapArr (make (of_nat (storage_size n)) 0%N) make_length.
-
-  Lemma make_length_ones64 :
-    length (make (of_nat (storage_size n)) (N.ones 64)) = of_nat (storage_size n).
+  Lemma make_length (v : N) :
+    length (make (of_nat (storage_size n)) v) = of_nat (storage_size n).
   Proof. rewrite length_make_. rewrite size_fits_leb. reflexivity. Qed.
 
+  Definition ba_all_unknown : BelnapArr :=
+    mkBelnapArr (make (of_nat (storage_size n)) 0%N) (make_length _).
+
   Definition ba_all_both : BelnapArr :=
-    mkBelnapArr (make (of_nat (storage_size n)) (N.ones 64)) make_length_ones64.
+    mkBelnapArr (make (of_nat (storage_size n)) (N.ones 64)) (make_length _).
 
   Lemma ba_all_unknown_models : models (all_unknown n) ba_all_unknown.
   Proof.
@@ -158,25 +152,11 @@ Section WithBound.
     rewrite Vector.const_nth. rewrite get_make_. reflexivity.
   Qed.
 
-  (* ============================= PArray map2 ============================= *)
+  (* ============================= PArray imap2 ============================= *)
 
-  (** Build a new array by applying [f] pointwise to two arrays of the same
-    logical length.  We count down from [fuel] to 0, setting each index. *)
-  Fixpoint parray_map2_aux (f : N -> N -> N) (a b result : array N)
-    (fuel : nat) : array N :=
-    match fuel with
-    | O => result
-    | S fuel' =>
-        let idx := of_nat fuel' in
-        parray_map2_aux f a b
-          (set result idx (f (get a idx) (get b idx)))
-          fuel'
-    end.
-
-  Definition parray_map2 (f : N -> N -> N) (a b : array N) (sz : nat) (dflt : N) : array N :=
-    parray_map2_aux f a b (make (of_nat sz) dflt) sz.
-
-  (** Index-dependent variant: [f] receives the nat index to dispatch on. *)
+  (** Build a new array by applying [f idx] pointwise to two source arrays,
+      counting down from [fuel] to 0.  When [f] ignores its index argument
+      this degenerates to a plain map2. *)
   Fixpoint parray_imap2_aux (f : nat -> N -> N -> N) (a b result : array N)
     (fuel : nat) : array N :=
     match fuel with
@@ -192,24 +172,7 @@ Section WithBound.
     (sz : nat) (dflt : N) : array N :=
     parray_imap2_aux f a b (make (of_nat sz) dflt) sz.
 
-  (* ============================= parray_map2 length preservation ============================= *)
-
-  Lemma parray_map2_aux_length (f : N -> N -> N) (a b result : array N) (fuel : nat) :
-    length (parray_map2_aux f a b result fuel) = length result.
-  Proof.
-    revert result. induction fuel as [|fuel' IH]; intro result.
-    - reflexivity.
-    - simpl. rewrite IH. rewrite length_set_. reflexivity.
-  Qed.
-
-  Lemma parray_map2_length (f : N -> N -> N) (a b : array N) (sz : nat) (dflt : N) :
-    (of_nat sz <=? max_length)%uint63 = true ->
-    length (parray_map2 f a b sz dflt) = of_nat sz.
-  Proof.
-    intro Hsz. unfold parray_map2.
-    rewrite parray_map2_aux_length.
-    rewrite length_make_. rewrite Hsz. reflexivity.
-  Qed.
+  (* ============================= parray_imap2 length preservation ============================= *)
 
   Lemma parray_imap2_aux_length (f : nat -> N -> N -> N) (a b result : array N) (fuel : nat) :
     length (parray_imap2_aux f a b result fuel) = length result.
@@ -229,56 +192,9 @@ Section WithBound.
     rewrite length_make_. rewrite Hsz. reflexivity.
   Qed.
 
-  (* ============================= parray_map2_aux simulation ============================= *)
+  (* ============================= parray_imap2_aux simulation ============================= *)
 
-  (** The recursive call only writes indices [0..fuel-1], so anything at [fuel]
-    or above is untouched. *)
-  Lemma parray_map2_aux_get_hi (f : N -> N -> N) (a b result : array N) (fuel : nat)
-    (k : nat) (Hk : fuel <= k) (HkwB : (Z.of_nat k < wB)%Z)
-    (HfuelwB : (Z.of_nat fuel < wB)%Z) :
-    get (parray_map2_aux f a b result fuel) (of_nat k) = get result (of_nat k).
-  Proof.
-    revert result. induction fuel as [|fuel' IH]; intro result.
-    - reflexivity.
-    - simpl. rewrite IH by lia.
-      rewrite get_set_other_; [reflexivity|].
-      intro Heq. apply of_nat_inj in Heq; lia.
-  Qed.
-
-  (** After processing indices [0..fuel-1], the result array agrees with [f]
-    applied pointwise for all in-range indices below [fuel].
-    [Hlen] guarantees the initial result array is large enough for [get_set_same]. *)
-  Lemma parray_map2_aux_get (f : N -> N -> N) (a b result : array N)
-    (fuel sz : nat) (Hfs : fuel <= sz)
-    (k : nat) (Hk : k < fuel) (HkwB : (Z.of_nat k < wB)%Z)
-    (HszwB : (Z.of_nat sz < wB)%Z)
-    (Hlen : length result = of_nat sz) :
-    get (parray_map2_aux f a b result fuel) (of_nat k) =
-      f (get a (of_nat k)) (get b (of_nat k)).
-  Proof.
-    revert k Hk HkwB result Hlen.
-    induction fuel as [|fuel' IH]; intros k Hk HkwB result Hlen.
-    - lia.
-    - simpl. destruct (Nat.eq_dec k fuel') as [->|Hne].
-      + rewrite parray_map2_aux_get_hi by lia.
-        apply get_set_same_. rewrite Hlen.
-        apply of_nat_lt_compat; lia.
-      + apply IH; try lia. rewrite length_set_. exact Hlen.
-  Qed.
-
-  Lemma parray_map2_get (f : N -> N -> N) (a b : array N)
-    (sz : nat) (dflt : N) (k : nat)
-    (Hk : k < sz) (HszwB : (Z.of_nat sz < wB)%Z)
-    (Hleb : (of_nat sz <=? max_length)%uint63 = true) :
-    get (parray_map2 f a b sz dflt) (of_nat k) =
-      f (get a (of_nat k)) (get b (of_nat k)).
-  Proof.
-    unfold parray_map2.
-    apply parray_map2_aux_get with (sz := sz); try lia.
-    rewrite length_make_. rewrite Hleb. reflexivity.
-  Qed.
-
-  (** Index-dependent versions. *)
+  (** Indices at [fuel] or above are untouched. *)
   Lemma parray_imap2_aux_get_hi (f : nat -> N -> N -> N) (a b result : array N) (fuel : nat)
     (k : nat) (Hk : fuel <= k) (HkwB : (Z.of_nat k < wB)%Z)
     (HfuelwB : (Z.of_nat fuel < wB)%Z) :
@@ -321,20 +237,20 @@ Section WithBound.
     rewrite length_make_. rewrite Hleb. reflexivity.
   Qed.
 
-  (* vec_binop_storage_nth is now proved in BelnapModel.v *)
-
   (* ============================= BelnapArr bulk operations ============================= *)
 
   Definition ba_binop_storage_f (posOp negOp : N -> N -> N) (idx : nat) : N -> N -> N :=
     if Nat.even idx then posOp else negOp.
 
   Definition ba_and (a b : BelnapArr) : BelnapArr :=
-    let arr := parray_map2 N.land (store a) (store b) (storage_size n) 0%N in
-    mkBelnapArr arr (parray_map2_length N.land _ _ _ _ size_fits_leb).
+    let f := ba_binop_storage_f N.land N.land in
+    let arr := parray_imap2 f (store a) (store b) (storage_size n) 0%N in
+    mkBelnapArr arr (parray_imap2_length f _ _ _ _ size_fits_leb).
 
   Definition ba_or (a b : BelnapArr) : BelnapArr :=
-    let arr := parray_map2 N.lor (store a) (store b) (storage_size n) 0%N in
-    mkBelnapArr arr (parray_map2_length N.lor _ _ _ _ size_fits_leb).
+    let f := ba_binop_storage_f N.lor N.lor in
+    let arr := parray_imap2 f (store a) (store b) (storage_size n) 0%N in
+    mkBelnapArr arr (parray_imap2_length f _ _ _ _ size_fits_leb).
 
   Definition ba_consensus (a b : BelnapArr) : BelnapArr :=
     let f := ba_binop_storage_f N.land N.lor in
@@ -626,57 +542,38 @@ Section WithBound.
 
   (* ============================= Simulation: bulk binops ============================= *)
 
-  (** Uniform binop simulation: [parray_map2]-based ops (same op on every word). *)
+  (** All four binops use [parray_imap2] with [ba_binop_storage_f], so the
+      simulation proofs share the same structure. *)
+  Local Ltac solve_binop_models :=
+    intros Hmod1 Hmod2 i;
+    unfold vec_and, vec_or, vec_consensus, vec_merge,
+      ba_and, ba_or, ba_consensus, ba_merge;
+    simpl; unfold Fin_to_int63;
+    rewrite (parray_imap2_get _ _ _ _ _ (fin_val i) (fin_lt i)
+               storage_size_lt_wB size_fits_leb);
+    rewrite vec_binop_storage_nth;
+    unfold ba_binop_storage_f;
+    destruct (Nat.even (fin_val i)); rewrite Hmod1, Hmod2; reflexivity.
+
   Lemma ba_and_models (bv1 bv2 : BVec) (ba1 ba2 : BelnapArr) :
     models bv1 ba1 -> models bv2 ba2 ->
     models (vec_and bv1 bv2) (ba_and ba1 ba2).
-  Proof.
-    intros Hmod1 Hmod2 i.
-    unfold ba_and, vec_and; simpl; unfold Fin_to_int63.
-    rewrite (parray_map2_get _ _ _ _ _ (fin_val i) (fin_lt i)
-               storage_size_lt_wB size_fits_leb).
-    rewrite vec_binop_storage_nth.
-    destruct (Nat.even (fin_val i)); rewrite Hmod1, Hmod2; reflexivity.
-  Qed.
+  Proof. solve_binop_models. Qed.
 
   Lemma ba_or_models (bv1 bv2 : BVec) (ba1 ba2 : BelnapArr) :
     models bv1 ba1 -> models bv2 ba2 ->
     models (vec_or bv1 bv2) (ba_or ba1 ba2).
-  Proof.
-    intros Hmod1 Hmod2 i.
-    unfold ba_or, vec_or; simpl; unfold Fin_to_int63.
-    rewrite (parray_map2_get _ _ _ _ _ (fin_val i) (fin_lt i)
-               storage_size_lt_wB size_fits_leb).
-    rewrite vec_binop_storage_nth.
-    destruct (Nat.even (fin_val i)); rewrite Hmod1, Hmod2; reflexivity.
-  Qed.
+  Proof. solve_binop_models. Qed.
 
-  (** Interleaved binop simulation: [parray_imap2]-based ops (different ops for even/odd words). *)
   Lemma ba_consensus_models (bv1 bv2 : BVec) (ba1 ba2 : BelnapArr) :
     models bv1 ba1 -> models bv2 ba2 ->
     models (vec_consensus bv1 bv2) (ba_consensus ba1 ba2).
-  Proof.
-    intros Hmod1 Hmod2 i.
-    unfold ba_consensus, vec_consensus; simpl; unfold Fin_to_int63.
-    rewrite (parray_imap2_get _ _ _ _ _ (fin_val i) (fin_lt i)
-               storage_size_lt_wB size_fits_leb).
-    rewrite vec_binop_storage_nth.
-    unfold ba_binop_storage_f.
-    destruct (Nat.even (fin_val i)); rewrite Hmod1, Hmod2; reflexivity.
-  Qed.
+  Proof. solve_binop_models. Qed.
 
   Lemma ba_merge_models (bv1 bv2 : BVec) (ba1 ba2 : BelnapArr) :
     models bv1 ba1 -> models bv2 ba2 ->
     models (vec_merge bv1 bv2) (ba_merge ba1 ba2).
-  Proof.
-    intros Hmod1 Hmod2 i.
-    unfold ba_merge, vec_merge; simpl; unfold Fin_to_int63.
-    rewrite (parray_imap2_get _ _ _ _ _ (fin_val i) (fin_lt i)
-               storage_size_lt_wB size_fits_leb).
-    rewrite vec_binop_storage_nth.
-    unfold ba_binop_storage_f.
-    destruct (Nat.even (fin_val i)); rewrite Hmod1, Hmod2; reflexivity.
-  Qed.
+  Proof. solve_binop_models. Qed.
 
   (** Interleaved constant simulation: requires interleave-indexing lemmas.
     The PArray [parray_interleave] places [even_val] at even indices and
