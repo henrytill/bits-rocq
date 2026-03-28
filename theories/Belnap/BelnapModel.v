@@ -55,6 +55,24 @@ Scheme Equality for Belnap.
 Notation fin_val i := (proj1_sig (Fin.to_nat i)).
 Notation fin_lt  i := (proj2_sig (Fin.to_nat i)).
 
+Lemma fin_val_FS {m : nat} (j : Fin.t m) : fin_val (Fin.FS j) = S (fin_val j).
+Proof. simpl. destruct (Fin.to_nat j) as [v Hv]. reflexivity. Qed.
+
+Lemma fin_val_of_nat_lt {p n : nat} (h : p < n) :
+  fin_val (Fin.of_nat_lt h) = p.
+Proof. unfold fin_val. rewrite Fin.to_nat_of_nat. reflexivity. Qed.
+
+Lemma fin_val_inj {m : nat} (a b : Fin.t m) :
+  fin_val a = fin_val b -> a = b.
+Proof.
+  unfold fin_val. intro H.
+  apply Fin.to_nat_inj.
+  destruct (Fin.to_nat a) as [va Ha], (Fin.to_nat b) as [vb Hb].
+  simpl in H. subst vb.
+  replace Hb with Ha by apply le_unique.
+  reflexivity.
+Qed.
+
 (* ============================= Encoding / decoding ============================= *)
 
 (** [encode_belnap b bit] returns (pos_contribution, neg_contribution) already
@@ -213,6 +231,57 @@ Proof.
   rewrite deinterleave_const in H. exact H.
 Qed.
 
+(** Pointwise characterization of deinterleave-map2-interleave:
+    even indices get [f], odd indices get [g]. *)
+Lemma deinterleave_interleave_map2_nth {A : Type} (f g : A -> A -> A)
+  (m : nat) (a b : Vector.t A (double m))
+  (i : Fin.t (double m)) :
+  let '(ea, oa) := deinterleave m a in
+  let '(eb, ob) := deinterleave m b in
+  Vector.nth (interleave m (Vector.map2 f ea eb) (Vector.map2 g oa ob)) i =
+    (if Nat.even (fin_val i) then f else g)
+      (Vector.nth a i) (Vector.nth b i).
+Proof.
+  revert a b i.
+  induction m as [|m' IH]; intros a b i.
+  - inversion i.
+  - rewrite (Vector.eta a). rewrite (Vector.eta (Vector.tl a)).
+    rewrite (Vector.eta b). rewrite (Vector.eta (Vector.tl b)).
+    simp deinterleave.
+    destruct (deinterleave m' (Vector.tl (Vector.tl a))) as [eA oA] eqn:HdA.
+    destruct (deinterleave m' (Vector.tl (Vector.tl b))) as [eB oB] eqn:HdB.
+    change (double (S m')) with (S (S (double m'))) in i |- *.
+    apply (Fin.caseS' i).
+    + simp interleave. reflexivity.
+    + intros j. apply (Fin.caseS' j).
+      * simp interleave. reflexivity.
+      * intros k. rewrite !fin_val_FS.
+        change (Nat.even (S (S (fin_val k)))) with (Nat.even (fin_val k)).
+        simpl Vector.map2. simp interleave. simpl Vector.nth.
+        specialize (IH (Vector.tl (Vector.tl a)) (Vector.tl (Vector.tl b)) k).
+        rewrite HdA in IH. rewrite HdB in IH.
+        exact IH.
+Qed.
+
+(** Interleave of two constant vectors: even positions get [e_val], odd get [o_val]. *)
+Lemma interleave_const_nth {A : Type} (m : nat) (e_val o_val : A)
+  (i : Fin.t (double m)) :
+  Vector.nth (interleave m (Vector.const e_val m) (Vector.const o_val m)) i =
+    if Nat.even (fin_val i) then e_val else o_val.
+Proof.
+  revert i. induction m as [|m' IH]; intros i.
+  - inversion i.
+  - change (double (S m')) with (S (S (double m'))) in i |- *.
+    change (Vector.const e_val (S m')) with (Vector.cons _ e_val _ (Vector.const e_val m')).
+    change (Vector.const o_val (S m')) with (Vector.cons _ o_val _ (Vector.const o_val m')).
+    simp interleave.
+    apply (Fin.caseS' i); [reflexivity|].
+    intros j. apply (Fin.caseS' j); [reflexivity|].
+    intros k. rewrite !fin_val_FS.
+    change (Nat.even (S (S (fin_val k)))) with (Nat.even (fin_val k)).
+    simpl Vector.nth. exact (IH k).
+Qed.
+
 (* ============================= Vector helpers ============================= *)
 
 Lemma vec_map2_nth {A B C n} (f : A -> B -> C)
@@ -236,10 +305,109 @@ Definition vec_binop_storage (posOp negOp : N -> N -> N) {n : nat} (a b : BVec n
   let '(bP, bN) := deinterleave wp b in
   interleave wp (Vector.map2 posOp aP bP) (Vector.map2 negOp aN bN).
 
+(** Pointwise characterization of [vec_binop_storage]: even-indexed words get
+    [posOp], odd-indexed words get [negOp]. *)
+Lemma vec_binop_storage_nth (posOp negOp : N -> N -> N) {n : nat} (a b : BVec n)
+  (i : Fin.t (storage_size n)) :
+  Vector.nth (vec_binop_storage posOp negOp a b) i =
+    (if Nat.even (fin_val i) then posOp else negOp)
+      (Vector.nth a i) (Vector.nth b i).
+Proof.
+  unfold vec_binop_storage, storage_size.
+  set (wp := words_per_plane n).
+  pose proof (deinterleave_interleave_map2_nth posOp negOp wp a b i) as H.
+  destruct (deinterleave wp a) as [aP aN].
+  destruct (deinterleave wp b) as [bP bN].
+  exact H.
+Qed.
+
+(** Swap partner on naturals: even k → k+1, odd k → k−1. *)
+Definition swap_nat (k : nat) : nat := if Nat.even k then k + 1 else k - 1.
+
+Lemma swap_nat_SS (k : nat) : swap_nat (S (S k)) = S (S (swap_nat k)).
+Proof.
+  unfold swap_nat. rewrite Nat.even_succ_succ.
+  destruct (Nat.even k) eqn:He; [lia|].
+  assert (k >= 1) by (destruct k; [simpl in He; discriminate | lia]).
+  lia.
+Qed.
+
+Lemma swap_nat_bound (m k : nat) (Hk : k < double m) :
+  swap_nat k < double m.
+Proof.
+  unfold swap_nat. rewrite double_eq_mul2 in Hk |- *.
+  destruct (Nat.even k) eqn:He.
+  - (* even k: k+1 < 2m. Since k is even and k < 2m, k ≠ 2m-1. *)
+    assert (Hne : k <> 2 * m - 1).
+    { intro Habs. subst k.
+      assert (Hge : 1 <= 2 * m) by lia.
+      rewrite Nat.even_sub in He; [|exact Hge].
+      replace (Nat.even (2 * m)) with true in He
+          by (symmetry; apply Nat.even_mul; left; reflexivity).
+      simpl in He. discriminate. }
+    lia.
+  - lia.
+Qed.
+
 Definition vec_not {n : nat} (bv : BVec n) : BVec n :=
   let wp := words_per_plane n in
   let '(pos, neg) := deinterleave wp bv in
   interleave wp neg pos.
+
+(** Helper: swap characterization for interleave with swapped planes. *)
+Lemma interleave_swap_nth {A : Type} (m : nat) (v : Vector.t A (double m))
+  (i : Fin.t (double m)) :
+  let '(e, o) := deinterleave m v in
+  Vector.nth (interleave m o e) i =
+    Vector.nth v (Fin.of_nat_lt (swap_nat_bound m (fin_val i) (fin_lt i))).
+Proof.
+  revert v i. induction m as [|m' IH]; intros v i.
+  - inversion i.
+  - rewrite (Vector.eta v). rewrite (Vector.eta (Vector.tl v)).
+    simp deinterleave.
+    destruct (deinterleave m' (Vector.tl (Vector.tl v))) as [eR oR] eqn:HdR.
+    simp interleave.
+    change (double (S m')) with (S (S (double m'))) in i |- *.
+    apply (Fin.caseS' i).
+    + (* F1, index 0, even: swap gives index 1 *)
+      simpl. replace (Fin.of_nat_lt _) with (Fin.FS (@Fin.F1 (double m')))
+        by (apply fin_val_inj; rewrite Fin.to_nat_of_nat; reflexivity).
+      reflexivity.
+    + intros j. apply (Fin.caseS' j).
+      * (* FS F1, index 1, odd: swap gives index 0 *)
+        simpl. replace (Fin.of_nat_lt _) with (@Fin.F1 (S (double m')))
+          by (apply fin_val_inj; rewrite Fin.to_nat_of_nat; reflexivity).
+        reflexivity.
+      * intros k.
+        (* LHS reduces by simpl: nth (interleave m' oR eR) k *)
+        simpl Vector.nth.
+        (* Apply IH to get: nth (tl (tl v)) (of_nat_lt (swap_nat_bound m' ...)) *)
+        specialize (IH (Vector.tl (Vector.tl v)) k).
+        rewrite HdR in IH. rewrite IH.
+        (* Now: nth (tl (tl v)) (of_nat_lt (swap_nat_bound m' k))
+             = nth (hd v :: hd(tl v) :: tl(tl v)) (of_nat_lt (swap_nat_bound (S m') (FS(FS k)))) *)
+        (* Both access tl(tl v) at the same index — show the Fin.t values agree *)
+        assert (Hfin : Fin.of_nat_lt (swap_nat_bound (S m') (fin_val (Fin.FS (Fin.FS k)))
+                                        (fin_lt (Fin.FS (Fin.FS k)))) =
+                         Fin.FS (Fin.FS (Fin.of_nat_lt (swap_nat_bound m' (fin_val k) (fin_lt k))))).
+        { apply fin_val_inj.
+          rewrite fin_val_of_nat_lt. rewrite !fin_val_FS. rewrite fin_val_of_nat_lt.
+          apply swap_nat_SS. }
+        rewrite Hfin. simpl Vector.nth. reflexivity.
+Qed.
+
+(** [vec_not] at index [i] gives the swap-partner value from the original vector:
+    at even [i], the result is [bv] at [i+1]; at odd [i], it's [bv] at [i-1]. *)
+Lemma vec_not_nth_swap {n : nat} (bv : BVec n) (i : Fin.t (storage_size n)) :
+  Vector.nth (vec_not bv) i =
+    Vector.nth bv (Fin.of_nat_lt (swap_nat_bound (words_per_plane n)
+                                    (fin_val i) (fin_lt i))).
+Proof.
+  unfold vec_not, storage_size.
+  pose proof (interleave_swap_nth (words_per_plane n) bv i) as H.
+  destruct (deinterleave (words_per_plane n) bv) as [pos neg].
+  exact H.
+Qed.
 
 Definition vec_and       {n} (a b : BVec n) := vec_binop_storage N.land N.land a b.
 Definition vec_or        {n} (a b : BVec n) := vec_binop_storage N.lor  N.lor  a b.
