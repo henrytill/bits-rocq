@@ -247,10 +247,10 @@ Section WithBound.
     let arr := parray_imap2 f (store a) (store b) (storage_size n) 0%N in
     mkBelnapArr arr (parray_imap2_length f _ _ _ _ size_fits_leb).
 
-  Definition ba_and       := ba_binop N.land N.land.
-  Definition ba_or        := ba_binop N.lor  N.lor.
-  Definition ba_consensus := ba_binop N.land N.lor.
-  Definition ba_merge     := ba_binop N.lor  N.land.
+  Definition ba_and       := ba_binop N.land N.lor.
+  Definition ba_or        := ba_binop N.lor  N.land.
+  Definition ba_consensus := ba_binop N.land N.land.
+  Definition ba_merge     := ba_binop N.lor  N.lor.
 
   (* ============================= BelnapArr element access ============================= *)
 
@@ -546,10 +546,10 @@ Section WithBound.
     destruct (Nat.even (fin_val i)); rewrite Hmod1, Hmod2; reflexivity.
   Qed.
 
-  Definition ba_and_models       := ba_binop_models N.land N.land.
-  Definition ba_or_models        := ba_binop_models N.lor  N.lor.
-  Definition ba_consensus_models := ba_binop_models N.land N.lor.
-  Definition ba_merge_models     := ba_binop_models N.lor  N.land.
+  Definition ba_and_models       := ba_binop_models N.land N.lor.
+  Definition ba_or_models        := ba_binop_models N.lor  N.land.
+  Definition ba_consensus_models := ba_binop_models N.land N.land.
+  Definition ba_merge_models     := ba_binop_models N.lor  N.lor.
 
   (** Interleaved constant simulation: requires interleave-indexing lemmas.
     The PArray [parray_interleave] places [even_val] at even indices and

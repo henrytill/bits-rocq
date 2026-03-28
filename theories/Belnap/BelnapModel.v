@@ -395,10 +395,10 @@ Proof.
   exact H.
 Qed.
 
-Definition vec_and       {n} (a b : BVec n) := vec_binop_storage N.land N.land a b.
-Definition vec_or        {n} (a b : BVec n) := vec_binop_storage N.lor  N.lor  a b.
-Definition vec_consensus {n} (a b : BVec n) := vec_binop_storage N.land N.lor  a b.
-Definition vec_merge     {n} (a b : BVec n) := vec_binop_storage N.lor  N.land a b.
+Definition vec_and       {n} (a b : BVec n) := vec_binop_storage N.land N.lor  a b.
+Definition vec_or        {n} (a b : BVec n) := vec_binop_storage N.lor  N.land a b.
+Definition vec_consensus {n} (a b : BVec n) := vec_binop_storage N.land N.land a b.
+Definition vec_merge     {n} (a b : BVec n) := vec_binop_storage N.lor  N.lor  a b.
 
 (* ============================= Initialization ============================= *)
 
@@ -595,13 +595,17 @@ Lemma bv_bounded_vec_and {n} (a b : BVec n) :
 Proof.
   apply bv_bounded_vec_binop_storage.
   - intros x y Hx _. exact (word_bounded_land x y Hx).
-  - intros x y Hx _. exact (word_bounded_land x y Hx).
+  - exact word_bounded_lor.
 Qed.
 
 Lemma bv_bounded_vec_or {n} (a b : BVec n) :
   bv_bounded a = true -> bv_bounded b = true ->
   bv_bounded (vec_or a b) = true.
-Proof. apply bv_bounded_vec_binop_storage; exact word_bounded_lor. Qed.
+Proof.
+  apply bv_bounded_vec_binop_storage.
+  - exact word_bounded_lor.
+  - intros x y Hx _. exact (word_bounded_land x y Hx).
+Qed.
 
 Lemma bv_bounded_vec_consensus {n} (a b : BVec n) :
   bv_bounded a = true -> bv_bounded b = true ->
@@ -609,17 +613,13 @@ Lemma bv_bounded_vec_consensus {n} (a b : BVec n) :
 Proof.
   apply bv_bounded_vec_binop_storage.
   - intros x y Hx _. exact (word_bounded_land x y Hx).
-  - exact word_bounded_lor.
+  - intros x y Hx _. exact (word_bounded_land x y Hx).
 Qed.
 
 Lemma bv_bounded_vec_merge {n} (a b : BVec n) :
   bv_bounded a = true -> bv_bounded b = true ->
   bv_bounded (vec_merge a b) = true.
-Proof.
-  apply bv_bounded_vec_binop_storage.
-  - exact word_bounded_lor.
-  - intros x y Hx _. exact (word_bounded_land x y Hx).
-Qed.
+Proof. apply bv_bounded_vec_binop_storage; exact word_bounded_lor. Qed.
 
 (* --- Vector-level bottom/top lemmas --- *)
 
@@ -655,36 +655,10 @@ Proof.
   rewrite vec_map2_nth. rewrite Vector.const_nth. apply N.lor_0_r.
 Qed.
 
-Lemma vec_and_all_unknown_l {n} (x : BVec n) :
-  vec_and (all_unknown n) x = all_unknown n.
+Lemma vec_and_all_false_l {n} (x : BVec n) :
+  bv_bounded x = true -> vec_and (all_false n) x = all_false n.
 Proof.
-  unfold vec_and, vec_binop_storage, all_unknown, storage_size.
-  set (wp := words_per_plane n).
-  rewrite deinterleave_const.
-  destruct (deinterleave wp x) as [xP xN].
-  rewrite !vec_map2_land_const0_l.
-  exact (interleave_const wp 0%N).
-Qed.
-
-Lemma vec_and_all_both_r {n} (x : BVec n) :
-  bv_bounded x = true -> vec_and x (all_both n) = x.
-Proof.
-  intro Hx. unfold vec_and, vec_binop_storage, all_both.
-  set (wp := words_per_plane n).
-  rewrite deinterleave_const.
-  unfold bv_bounded in Hx.
-  pose proof (vec_all_deinterleave wp word_bounded x Hx) as [HxP HxN].
-  destruct (deinterleave wp x) as [xP xN] eqn:Hdx. simpl in *.
-  rewrite (vec_map2_land_ones_r xP HxP).
-  rewrite (vec_map2_land_ones_r xN HxN).
-  pose proof (interleave_deinterleave wp x) as Hrt.
-  rewrite Hdx in Hrt. exact Hrt.
-Qed.
-
-Lemma vec_consensus_all_false_l {n} (x : BVec n) :
-  bv_bounded x = true -> vec_consensus (all_false n) x = all_false n.
-Proof.
-  intro Hx. unfold vec_consensus, vec_binop_storage, all_false.
+  intro Hx. unfold vec_and, vec_binop_storage, all_false.
   set (wp := words_per_plane n).
   rewrite deinterleave_interleave.
   unfold bv_bounded in Hx.
@@ -695,10 +669,10 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma vec_consensus_all_true_r {n} (x : BVec n) :
-  bv_bounded x = true -> vec_consensus x (all_true n) = x.
+Lemma vec_and_all_true_r {n} (x : BVec n) :
+  bv_bounded x = true -> vec_and x (all_true n) = x.
 Proof.
-  intro Hx. unfold vec_consensus, vec_binop_storage, all_true.
+  intro Hx. unfold vec_and, vec_binop_storage, all_true.
   set (wp := words_per_plane n).
   rewrite deinterleave_interleave.
   unfold bv_bounded in Hx.
@@ -706,6 +680,32 @@ Proof.
   destruct (deinterleave wp x) as [xP xN] eqn:Hdx. simpl in *.
   rewrite (vec_map2_land_ones_r xP HxP).
   rewrite vec_map2_lor_const0_r.
+  pose proof (interleave_deinterleave wp x) as Hrt.
+  rewrite Hdx in Hrt. exact Hrt.
+Qed.
+
+Lemma vec_consensus_all_unknown_l {n} (x : BVec n) :
+  vec_consensus (all_unknown n) x = all_unknown n.
+Proof.
+  unfold vec_consensus, vec_binop_storage, all_unknown, storage_size.
+  set (wp := words_per_plane n).
+  rewrite deinterleave_const.
+  destruct (deinterleave wp x) as [xP xN].
+  rewrite !vec_map2_land_const0_l.
+  exact (interleave_const wp 0%N).
+Qed.
+
+Lemma vec_consensus_all_both_r {n} (x : BVec n) :
+  bv_bounded x = true -> vec_consensus x (all_both n) = x.
+Proof.
+  intro Hx. unfold vec_consensus, vec_binop_storage, all_both.
+  set (wp := words_per_plane n).
+  rewrite deinterleave_const.
+  unfold bv_bounded in Hx.
+  pose proof (vec_all_deinterleave wp word_bounded x Hx) as [HxP HxN].
+  destruct (deinterleave wp x) as [xP xN] eqn:Hdx. simpl in *.
+  rewrite (vec_map2_land_ones_r xP HxP).
+  rewrite (vec_map2_land_ones_r xN HxN).
   pose proof (interleave_deinterleave wp x) as Hrt.
   rewrite Hdx in Hrt. exact Hrt.
 Qed.
@@ -1003,8 +1003,8 @@ Definition truth_meet {n : nat} (x y : AsTruth n) : AsTruth n :=
 Definition truth_join {n : nat} (x y : AsTruth n) : AsTruth n :=
   @mkAsTruth n (bv_or (unTruth x) (unTruth y)).
 
-Definition truth_bot (n : nat) : AsTruth n := @mkAsTruth n (bv_all_unknown n).
-Definition truth_top (n : nat) : AsTruth n := @mkAsTruth n (bv_all_both n).
+Definition truth_bot (n : nat) : AsTruth n := @mkAsTruth n (bv_all_false n).
+Definition truth_top (n : nat) : AsTruth n := @mkAsTruth n (bv_all_true n).
 
 (* ============================= Knowledge ordering ============================= *)
 
@@ -1017,54 +1017,54 @@ Definition know_meet {n : nat} (x y : AsKnowledge n) : AsKnowledge n :=
 Definition know_join {n : nat} (x y : AsKnowledge n) : AsKnowledge n :=
   @mkAsKnowledge n (bv_merge (unKnowledge x) (unKnowledge y)).
 
-Definition know_bot (n : nat) : AsKnowledge n := @mkAsKnowledge n (bv_all_false n).
-Definition know_top (n : nat) : AsKnowledge n := @mkAsKnowledge n (bv_all_true n).
+Definition know_bot (n : nat) : AsKnowledge n := @mkAsKnowledge n (bv_all_unknown n).
+Definition know_top (n : nat) : AsKnowledge n := @mkAsKnowledge n (bv_all_both n).
 
 (* ============================= Lattice law proofs ============================= *)
 
 Lemma vec_and_comm {n} (a b : BVec n) : vec_and a b = vec_and b a.
-Proof. apply vec_binop_storage_comm; exact N.land_comm. Qed.
-
-Lemma vec_or_comm {n} (a b : BVec n) : vec_or a b = vec_or b a.
-Proof. apply vec_binop_storage_comm; exact N.lor_comm. Qed.
-
-Lemma vec_and_assoc {n} (a b c : BVec n) : vec_and a (vec_and b c) = vec_and (vec_and a b) c.
-Proof. apply vec_binop_storage_assoc; exact N.land_assoc. Qed.
-
-Lemma vec_or_assoc {n} (a b c : BVec n) : vec_or a (vec_or b c) = vec_or (vec_or a b) c.
-Proof. apply vec_binop_storage_assoc; exact N.lor_assoc. Qed.
-
-Lemma vec_consensus_comm {n} (a b : BVec n) : vec_consensus a b = vec_consensus b a.
 Proof. apply vec_binop_storage_comm; [exact N.land_comm | exact N.lor_comm]. Qed.
 
-Lemma vec_merge_comm {n} (a b : BVec n) : vec_merge a b = vec_merge b a.
+Lemma vec_or_comm {n} (a b : BVec n) : vec_or a b = vec_or b a.
 Proof. apply vec_binop_storage_comm; [exact N.lor_comm | exact N.land_comm]. Qed.
+
+Lemma vec_and_assoc {n} (a b c : BVec n) : vec_and a (vec_and b c) = vec_and (vec_and a b) c.
+Proof. apply vec_binop_storage_assoc; [exact N.land_assoc | exact N.lor_assoc]. Qed.
+
+Lemma vec_or_assoc {n} (a b c : BVec n) : vec_or a (vec_or b c) = vec_or (vec_or a b) c.
+Proof. apply vec_binop_storage_assoc; [exact N.lor_assoc | exact N.land_assoc]. Qed.
+
+Lemma vec_consensus_comm {n} (a b : BVec n) : vec_consensus a b = vec_consensus b a.
+Proof. apply vec_binop_storage_comm; exact N.land_comm. Qed.
+
+Lemma vec_merge_comm {n} (a b : BVec n) : vec_merge a b = vec_merge b a.
+Proof. apply vec_binop_storage_comm; exact N.lor_comm. Qed.
 
 Lemma vec_consensus_assoc {n} (a b c : BVec n) :
   vec_consensus a (vec_consensus b c) = vec_consensus (vec_consensus a b) c.
-Proof. apply vec_binop_storage_assoc; [exact N.land_assoc | exact N.lor_assoc]. Qed.
+Proof. apply vec_binop_storage_assoc; exact N.land_assoc. Qed.
 
 Lemma vec_merge_assoc {n} (a b c : BVec n) :
   vec_merge a (vec_merge b c) = vec_merge (vec_merge a b) c.
-Proof. apply vec_binop_storage_assoc; [exact N.lor_assoc | exact N.land_assoc]. Qed.
+Proof. apply vec_binop_storage_assoc; exact N.lor_assoc. Qed.
 
 Lemma vec_and_vec_or_abs {n} (a b : BVec n) : vec_and a (vec_or a b) = a.
-Proof. apply vec_binop_storage_absorb; exact N_land_lor_diag. Qed.
-
-Lemma vec_or_vec_and_abs {n} (a b : BVec n) : vec_or a (vec_and a b) = a.
-Proof. apply vec_binop_storage_absorb; exact N_lor_land_diag. Qed.
-
-Lemma vec_consensus_vec_merge_abs {n} (a b : BVec n) : vec_consensus a (vec_merge a b) = a.
 Proof. apply vec_binop_storage_absorb; [exact N_land_lor_diag | exact N_lor_land_diag]. Qed.
 
-Lemma vec_merge_vec_consensus_abs {n} (a b : BVec n) : vec_merge a (vec_consensus a b) = a.
+Lemma vec_or_vec_and_abs {n} (a b : BVec n) : vec_or a (vec_and a b) = a.
 Proof. apply vec_binop_storage_absorb; [exact N_lor_land_diag | exact N_land_lor_diag]. Qed.
 
+Lemma vec_consensus_vec_merge_abs {n} (a b : BVec n) : vec_consensus a (vec_merge a b) = a.
+Proof. apply vec_binop_storage_absorb; exact N_land_lor_diag. Qed.
+
+Lemma vec_merge_vec_consensus_abs {n} (a b : BVec n) : vec_merge a (vec_consensus a b) = a.
+Proof. apply vec_binop_storage_absorb; exact N_lor_land_diag. Qed.
+
 Lemma vec_and_idem {n} (v : BVec n) : vec_and v v = v.
-Proof. exact (vec_binop_storage_idem _ _ N.land_diag N.land_diag v). Qed.
+Proof. exact (vec_binop_storage_idem _ _ N.land_diag N.lor_diag v). Qed.
 
 Lemma vec_consensus_idem {n} (v : BVec n) : vec_consensus v v = v.
-Proof. exact (vec_binop_storage_idem _ _ N.land_diag N.lor_diag v). Qed.
+Proof. exact (vec_binop_storage_idem _ _ N.land_diag N.land_diag v). Qed.
 
 (* ============================= BelnapVec algebraic laws ============================= *)
 
@@ -1116,21 +1116,21 @@ Lemma bv_merge_consensus_abs {n} (a b : BelnapVec n) :
   bv_merge a (bv_consensus a b) = a.
 Proof. apply val_inj. simpl. apply vec_merge_vec_consensus_abs. Qed.
 
-Lemma bv_and_all_unknown_l {n} (x : BelnapVec n) :
-  bv_and (bv_all_unknown n) x = bv_all_unknown n.
-Proof. apply val_inj. simpl. apply vec_and_all_unknown_l. Qed.
+Lemma bv_and_all_false_l {n} (x : BelnapVec n) :
+  bv_and (bv_all_false n) x = bv_all_false n.
+Proof. apply val_inj. simpl. apply vec_and_all_false_l. exact (valP x). Qed.
 
-Lemma bv_and_all_both_r {n} (x : BelnapVec n) :
-  bv_and x (bv_all_both n) = x.
-Proof. apply val_inj. simpl. apply vec_and_all_both_r. exact (valP x). Qed.
+Lemma bv_and_all_true_r {n} (x : BelnapVec n) :
+  bv_and x (bv_all_true n) = x.
+Proof. apply val_inj. simpl. apply vec_and_all_true_r. exact (valP x). Qed.
 
-Lemma bv_consensus_all_false_l {n} (x : BelnapVec n) :
-  bv_consensus (bv_all_false n) x = bv_all_false n.
-Proof. apply val_inj. simpl. apply vec_consensus_all_false_l. exact (valP x). Qed.
+Lemma bv_consensus_all_unknown_l {n} (x : BelnapVec n) :
+  bv_consensus (bv_all_unknown n) x = bv_all_unknown n.
+Proof. apply val_inj. simpl. apply vec_consensus_all_unknown_l. Qed.
 
-Lemma bv_consensus_all_true_r {n} (x : BelnapVec n) :
-  bv_consensus x (bv_all_true n) = x.
-Proof. apply val_inj. simpl. apply vec_consensus_all_true_r. exact (valP x). Qed.
+Lemma bv_consensus_all_both_r {n} (x : BelnapVec n) :
+  bv_consensus x (bv_all_both n) = x.
+Proof. apply val_inj. simpl. apply vec_consensus_all_both_r. exact (valP x). Qed.
 
 (* ============================= Order proofs ============================= *)
 
@@ -1186,10 +1186,10 @@ HB.instance Definition _ (n : nat) :=
     (@truth_leEmeet n).
 
 Lemma truth_le0x {n} (x : AsTruth n) : truth_le (truth_bot n) x.
-Proof. apply/eqP. apply bv_and_all_unknown_l. Qed.
+Proof. apply/eqP. apply bv_and_all_false_l. Qed.
 
 Lemma truth_lex1 {n} (x : AsTruth n) : truth_le x (truth_top n).
-Proof. apply/eqP. apply bv_and_all_both_r. Qed.
+Proof. apply/eqP. apply bv_and_all_true_r. Qed.
 
 HB.instance Definition _ (n : nat) :=
   Order.hasBottom.Build truth_display (AsTruth n) (@truth_le0x n).
@@ -1238,10 +1238,10 @@ Lemma know_meetKU {n} (y x : AsKnowledge n) : know_join x (know_meet x y) = x.
 Proof. apply val_inj. simpl. apply bv_merge_consensus_abs. Qed.
 
 Lemma know_le0x {n} (x : AsKnowledge n) : know_le (know_bot n) x.
-Proof. apply/eqP. apply bv_consensus_all_false_l. Qed.
+Proof. apply/eqP. apply bv_consensus_all_unknown_l. Qed.
 
 Lemma know_lex1 {n} (x : AsKnowledge n) : know_le x (know_top n).
-Proof. apply/eqP. apply bv_consensus_all_true_r. Qed.
+Proof. apply/eqP. apply bv_consensus_all_both_r. Qed.
 
 HB.instance Definition _ (n : nat) :=
   Order.Le_isPOrder.Build know_display (AsKnowledge n)
