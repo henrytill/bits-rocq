@@ -1,22 +1,7 @@
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    opam-repository = {
-      url = "github:ocaml/opam-repository";
-      flake = false;
-    };
-    rocq-opam = {
-      url = "github:rocq-prover/opam";
-      flake = false;
-    };
-    opam-nix = {
-      url = "github:tweag/opam-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.opam-repository.follows = "opam-repository";
-    };
-    flake-utils = {
-      follows = "opam-nix/flake-utils";
-    };
+    flake-utils.url = "github:numtide/flake-utils";
   };
   nixConfig = {
     extra-substituters = [ "https://henrytill.cachix.org" ];
@@ -27,44 +12,51 @@
   outputs =
     {
       self,
-      flake-utils,
-      opam-nix,
       nixpkgs,
-      opam-repository,
-      rocq-opam,
+      flake-utils,
       ...
-    }@inputs:
-    let
-      package = "bits-rocq";
-    in
+    }:
     flake-utils.lib.eachDefaultSystem (
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        repos = [
-          "${opam-repository}"
-          "${rocq-opam}/released"
-        ];
-        on = opam-nix.lib.${system};
-        src = self;
-        scope =
-          on.buildOpamProject
-            {
-              inherit repos;
-              resolveArgs.with-test = true;
-            }
-            package
-            src
-            {
-              ocaml-base-compiler = "5.3.0";
-            };
-        overlay = final: prev: { ${package} = prev.${package}.overrideAttrs (as: { }); };
+
+        coqPkgs = pkgs.coqPackages_9_0;
+        roqPkgs = pkgs.rocqPackages;
+        ocamlPkgs = coqPkgs.coq.ocamlPackages;
+
+        bits-rocq = ocamlPkgs.buildDunePackage {
+          pname = "bits-rocq";
+          version = "0.0.0-dev";
+          src = self;
+          duneVersion = "3";
+          nativeBuildInputs = [
+            ocamlPkgs.menhir
+            coqPkgs.coq
+          ];
+          buildInputs = [
+            roqPkgs.rocq-core
+            roqPkgs.stdlib
+            roqPkgs.mathcomp-boot
+            roqPkgs.mathcomp-order
+            roqPkgs.hierarchy-builder
+            roqPkgs.rocq-elpi
+            coqPkgs.equations
+            coqPkgs.MenhirLib
+            ocamlPkgs.zarith
+          ];
+          checkInputs = with ocamlPkgs; [
+            alcotest
+            ppx_deriving
+            ppx_import
+          ];
+          doCheck = true;
+        };
       in
       {
-        legacyPackages = scope.overrideScope overlay;
-        packages.default = self.legacyPackages.${system}.${package};
+        packages.default = bits-rocq;
         devShells.default = pkgs.mkShell {
-          inputsFrom = [ self.legacyPackages.${system}.${package} ];
+          inputsFrom = [ bits-rocq ];
         };
       }
     );
