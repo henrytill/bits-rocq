@@ -242,25 +242,15 @@ Section WithBound.
   Definition ba_binop_storage_f (posOp negOp : N -> N -> N) (idx : nat) : N -> N -> N :=
     if Nat.even idx then posOp else negOp.
 
-  Definition ba_and (a b : BelnapArr) : BelnapArr :=
-    let f := ba_binop_storage_f N.land N.land in
+  Definition ba_binop (posOp negOp : N -> N -> N) (a b : BelnapArr) : BelnapArr :=
+    let f := ba_binop_storage_f posOp negOp in
     let arr := parray_imap2 f (store a) (store b) (storage_size n) 0%N in
     mkBelnapArr arr (parray_imap2_length f _ _ _ _ size_fits_leb).
 
-  Definition ba_or (a b : BelnapArr) : BelnapArr :=
-    let f := ba_binop_storage_f N.lor N.lor in
-    let arr := parray_imap2 f (store a) (store b) (storage_size n) 0%N in
-    mkBelnapArr arr (parray_imap2_length f _ _ _ _ size_fits_leb).
-
-  Definition ba_consensus (a b : BelnapArr) : BelnapArr :=
-    let f := ba_binop_storage_f N.land N.lor in
-    let arr := parray_imap2 f (store a) (store b) (storage_size n) 0%N in
-    mkBelnapArr arr (parray_imap2_length f _ _ _ _ size_fits_leb).
-
-  Definition ba_merge (a b : BelnapArr) : BelnapArr :=
-    let f := ba_binop_storage_f N.lor N.land in
-    let arr := parray_imap2 f (store a) (store b) (storage_size n) 0%N in
-    mkBelnapArr arr (parray_imap2_length f _ _ _ _ size_fits_leb).
+  Definition ba_and       := ba_binop N.land N.land.
+  Definition ba_or        := ba_binop N.lor  N.lor.
+  Definition ba_consensus := ba_binop N.land N.lor.
+  Definition ba_merge     := ba_binop N.lor  N.land.
 
   (* ============================= BelnapArr element access ============================= *)
 
@@ -542,38 +532,24 @@ Section WithBound.
 
   (* ============================= Simulation: bulk binops ============================= *)
 
-  (** All four binops use [parray_imap2] with [ba_binop_storage_f], so the
-      simulation proofs share the same structure. *)
-  Local Ltac solve_binop_models :=
-    intros Hmod1 Hmod2 i;
-    unfold vec_and, vec_or, vec_consensus, vec_merge,
-      ba_and, ba_or, ba_consensus, ba_merge;
-    simpl; unfold Fin_to_int63;
+  Lemma ba_binop_models (posOp negOp : N -> N -> N)
+    (bv1 bv2 : BVec) (ba1 ba2 : BelnapArr) :
+    models bv1 ba1 -> models bv2 ba2 ->
+    models (vec_binop_storage posOp negOp bv1 bv2) (ba_binop posOp negOp ba1 ba2).
+  Proof.
+    intros Hmod1 Hmod2 i.
+    unfold ba_binop; simpl; unfold Fin_to_int63.
     rewrite (parray_imap2_get _ _ _ _ _ (fin_val i) (fin_lt i)
-               storage_size_lt_wB size_fits_leb);
-    rewrite vec_binop_storage_nth;
-    unfold ba_binop_storage_f;
+               storage_size_lt_wB size_fits_leb).
+    rewrite vec_binop_storage_nth.
+    unfold ba_binop_storage_f.
     destruct (Nat.even (fin_val i)); rewrite Hmod1, Hmod2; reflexivity.
+  Qed.
 
-  Lemma ba_and_models (bv1 bv2 : BVec) (ba1 ba2 : BelnapArr) :
-    models bv1 ba1 -> models bv2 ba2 ->
-    models (vec_and bv1 bv2) (ba_and ba1 ba2).
-  Proof. solve_binop_models. Qed.
-
-  Lemma ba_or_models (bv1 bv2 : BVec) (ba1 ba2 : BelnapArr) :
-    models bv1 ba1 -> models bv2 ba2 ->
-    models (vec_or bv1 bv2) (ba_or ba1 ba2).
-  Proof. solve_binop_models. Qed.
-
-  Lemma ba_consensus_models (bv1 bv2 : BVec) (ba1 ba2 : BelnapArr) :
-    models bv1 ba1 -> models bv2 ba2 ->
-    models (vec_consensus bv1 bv2) (ba_consensus ba1 ba2).
-  Proof. solve_binop_models. Qed.
-
-  Lemma ba_merge_models (bv1 bv2 : BVec) (ba1 ba2 : BelnapArr) :
-    models bv1 ba1 -> models bv2 ba2 ->
-    models (vec_merge bv1 bv2) (ba_merge ba1 ba2).
-  Proof. solve_binop_models. Qed.
+  Definition ba_and_models       := ba_binop_models N.land N.land.
+  Definition ba_or_models        := ba_binop_models N.lor  N.lor.
+  Definition ba_consensus_models := ba_binop_models N.land N.lor.
+  Definition ba_merge_models     := ba_binop_models N.lor  N.land.
 
   (** Interleaved constant simulation: requires interleave-indexing lemmas.
     The PArray [parray_interleave] places [even_val] at even indices and
