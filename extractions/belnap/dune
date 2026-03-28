@@ -1,0 +1,16 @@
+(coq.extraction
+ (prelude BelnapExtraction)
+ (extracted_modules belnap)
+ (theories Stdlib MenhirLib elpi elpi_elpi Equations HB mathcomp.boot mathcomp.order Bits))
+
+(library
+ (name belnap)
+ (public_name bits-rocq.belnap)
+ (modules belnap)
+ (libraries zarith rocq-runtime.kernel)
+ (flags -w -20))
+
+(test
+ (name belnap_test)
+ (modules belnap_test)
+ (libraries belnap alcotest))
