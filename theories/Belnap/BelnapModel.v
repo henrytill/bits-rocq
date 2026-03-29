@@ -257,8 +257,7 @@ Proof.
 Qed.
 
 (** Interleave of two constant vectors: even positions get [e_val], odd get [o_val]. *)
-Lemma interleave_const_nth {A : Type} (m : nat) (e_val o_val : A)
-  (i : Fin.t (double m)) :
+Lemma interleave_const_nth {A : Type} (m : nat) (e_val o_val : A) (i : Fin.t (double m)) :
   Vector.nth (interleave m (Vector.const e_val m) (Vector.const o_val m)) i =
     if Nat.even (fin_val i) then e_val else o_val.
 Proof.
@@ -277,8 +276,7 @@ Qed.
 
 (* ============================= Vector helpers ============================= *)
 
-Lemma vec_map2_nth {A B C n} (f : A -> B -> C)
-  (a : Vector.t A n) (b : Vector.t B n) (i : Fin.t n) :
+Lemma vec_map2_nth {A B C n} (f : A -> B -> C) (a : Vector.t A n) (b : Vector.t B n) (i : Fin.t n) :
   Vector.nth (Vector.map2 f a b) i = f (Vector.nth a i) (Vector.nth b i).
 Proof. exact (VectorSpec.nth_map2 f a b i i i Logic.eq_refl Logic.eq_refl). Qed.
 

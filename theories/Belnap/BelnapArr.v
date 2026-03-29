@@ -115,10 +115,11 @@ Section WithBound.
 
   (* ============================= BelnapArr record ============================= *)
 
-  Record BelnapArr : Type := mkBelnapArr {
-                                 store : array N;
-                                 hlen  : length store = of_nat (storage_size n)
-                               }.
+  Record BelnapArr : Type :=
+    mkBelnapArr {
+        store : array N;
+        hlen  : length store = of_nat (storage_size n)
+      }.
 
   (* ============================= Simulation relation ============================= *)
 
