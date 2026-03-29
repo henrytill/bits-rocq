@@ -356,14 +356,10 @@ Proof.
     change (double (S m')) with (S (S (double m'))) in i |- *.
     apply (Fin.caseS' i).
     + (* F1, index 0, even: swap gives index 1 *)
-      simpl. replace (Fin.of_nat_lt _) with (Fin.FS (@Fin.F1 (double m')))
-        by (apply fin_val_inj; rewrite Fin.to_nat_of_nat; reflexivity).
-      reflexivity.
+      simpl. reflexivity.
     + intros j. apply (Fin.caseS' j).
       * (* FS F1, index 1, odd: swap gives index 0 *)
-        simpl. replace (Fin.of_nat_lt _) with (@Fin.F1 (S (double m')))
-          by (apply fin_val_inj; rewrite Fin.to_nat_of_nat; reflexivity).
-        reflexivity.
+        simpl. reflexivity.
       * intros k.
         (* LHS reduces by simpl: nth (interleave m' oR eR) k *)
         simpl Vector.nth.
