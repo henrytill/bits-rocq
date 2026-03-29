@@ -498,7 +498,7 @@ Section WithBound.
   Lemma Fin_to_int63_neq (a b : Fin.t (storage_size n)) :
     a <> b -> Fin_to_int63 a <> Fin_to_int63 b.
   Proof.
-    intros Hne Heq. apply Hne. apply fin_val_inj. exact (Fin_to_int63_inj _ _ Heq).
+    intros Hne Heq. apply Hne. apply Fin.to_nat_inj. exact (Fin_to_int63_inj _ _ Heq).
   Qed.
 
   Lemma ba_set_models (i : Fin.t n) (b : Belnap) (bv : BVec) (ba : BelnapArr) :

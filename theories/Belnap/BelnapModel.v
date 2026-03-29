@@ -62,10 +62,6 @@ Lemma fin_val_of_nat_lt {p n : nat} (h : p < n) :
   fin_val (Fin.of_nat_lt h) = p.
 Proof. unfold fin_val. rewrite Fin.to_nat_of_nat. reflexivity. Qed.
 
-Lemma fin_val_inj {m : nat} (a b : Fin.t m) :
-  fin_val a = fin_val b -> a = b.
-Proof. exact (Fin.to_nat_inj a b). Qed.
-
 (* ============================= Encoding / decoding ============================= *)
 
 (** [encode_belnap b bit] returns (pos_contribution, neg_contribution) already
@@ -370,7 +366,7 @@ Proof.
         assert (Hfin : Fin.of_nat_lt (swap_nat_bound (S m') (fin_val (Fin.FS (Fin.FS k)))
                                         (fin_lt (Fin.FS (Fin.FS k)))) =
                          Fin.FS (Fin.FS (Fin.of_nat_lt (swap_nat_bound m' (fin_val k) (fin_lt k))))).
-        { apply fin_val_inj.
+        { apply Fin.to_nat_inj.
           rewrite fin_val_of_nat_lt. rewrite !fin_val_FS. rewrite fin_val_of_nat_lt.
           apply swap_nat_SS. }
         rewrite Hfin. simpl Vector.nth. reflexivity.
