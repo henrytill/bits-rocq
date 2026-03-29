@@ -263,7 +263,7 @@ Lemma interleave_const_nth {A : Type} (m : nat) (e_val o_val : A) (i : Fin.t (do
 Proof.
   revert i. induction m as [|m' IH]; intros i.
   - inversion i.
-  - change (double (S m')) with (S (S (double m'))) in i |- *.
+  - change (double (S m')) with (S (S (double m'))) in i.
     change (Vector.const e_val (S m')) with (Vector.cons _ e_val _ (Vector.const e_val m')).
     change (Vector.const o_val (S m')) with (Vector.cons _ o_val _ (Vector.const o_val m')).
     simp interleave.
@@ -351,7 +351,7 @@ Proof.
     simp deinterleave.
     destruct (deinterleave m' (Vector.tl (Vector.tl v))) as [eR oR] eqn:HdR.
     simp interleave.
-    change (double (S m')) with (S (S (double m'))) in i |- *.
+    change (double (S m')) with (S (S (double m'))) in i.
     apply (Fin.caseS' i).
     + (* F1, index 0, even: swap gives index 1 *)
       simpl. reflexivity.
