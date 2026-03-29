@@ -14,23 +14,23 @@ From Bits.Belnap Require Import BelnapModel.
 (** The ArrayAxioms lemmas ([length_make], [get_set_same], etc.) are not
     universe-polymorphic, so [rewrite length_make] fails when the element
     type lives in [Set] (e.g. [N]).  We redeclare them as polymorphic axioms. *)
-#[universes(polymorphic)] Axiom length_make_ :
+#[universes(polymorphic)] Axiom length_make_poly :
   forall (A : Type) (size : int) (a : A),
     length (make size a) = if (size <=? max_length)%uint63 then size else max_length.
 
-#[universes(polymorphic)] Axiom get_make_ :
+#[universes(polymorphic)] Axiom get_make_poly :
   forall (A : Type) (a : A) (size i : int),
     (make size a).[i] = a.
 
-#[universes(polymorphic)] Axiom get_set_same_ :
+#[universes(polymorphic)] Axiom get_set_same_poly :
   forall (A : Type) (t : array A) (i : int) (a : A),
     (i <? length t)%uint63 = true -> t.[i <- a].[i] = a.
 
-#[universes(polymorphic)] Axiom get_set_other_ :
+#[universes(polymorphic)] Axiom get_set_other_poly :
   forall (A : Type) (t : array A) (i j : int) (a : A),
     i <> j -> t.[i <- a].[j] = t.[j].
 
-#[universes(polymorphic)] Axiom length_set_ :
+#[universes(polymorphic)] Axiom length_set_poly :
   forall (A : Type) (t : array A) (i : int) (a : A),
     length t.[i <- a] = length t.
 
@@ -132,7 +132,7 @@ Section WithBound.
 
   Lemma make_length (v : N) :
     length (make (of_nat (storage_size n)) v) = of_nat (storage_size n).
-  Proof. rewrite length_make_. rewrite size_fits_leb. reflexivity. Qed.
+  Proof. rewrite length_make_poly. rewrite size_fits_leb. reflexivity. Qed.
 
   Definition ba_all_unknown : BelnapArr :=
     mkBelnapArr (make (of_nat (storage_size n)) 0%N) (make_length _).
@@ -143,13 +143,13 @@ Section WithBound.
   Lemma ba_all_unknown_models : models (all_unknown n) ba_all_unknown.
   Proof.
     intro i. unfold models, all_unknown, ba_all_unknown. simpl.
-    rewrite Vector.const_nth. rewrite get_make_. reflexivity.
+    rewrite Vector.const_nth. rewrite get_make_poly. reflexivity.
   Qed.
 
   Lemma ba_all_both_models : models (all_both n) ba_all_both.
   Proof.
     intro i. unfold models, all_both, ba_all_both. simpl.
-    rewrite Vector.const_nth. rewrite get_make_. reflexivity.
+    rewrite Vector.const_nth. rewrite get_make_poly. reflexivity.
   Qed.
 
   (* ============================= PArray imap2 ============================= *)
@@ -179,7 +179,7 @@ Section WithBound.
   Proof.
     revert result. induction fuel as [|fuel' IH]; intro result.
     - reflexivity.
-    - simpl. rewrite IH. rewrite length_set_. reflexivity.
+    - simpl. rewrite IH. rewrite length_set_poly. reflexivity.
   Qed.
 
   Lemma parray_imap2_length (f : nat -> N -> N -> N) (a b : array N)
@@ -189,7 +189,7 @@ Section WithBound.
   Proof.
     intro Hsz. unfold parray_imap2.
     rewrite parray_imap2_aux_length.
-    rewrite length_make_. rewrite Hsz. reflexivity.
+    rewrite length_make_poly. rewrite Hsz. reflexivity.
   Qed.
 
   (* ============================= parray_imap2_aux simulation ============================= *)
@@ -203,7 +203,7 @@ Section WithBound.
     revert result. induction fuel as [|fuel' IH]; intro result.
     - reflexivity.
     - simpl. rewrite IH by lia.
-      rewrite get_set_other_; [reflexivity|].
+      rewrite get_set_other_poly; [reflexivity|].
       intro Heq. apply of_nat_inj in Heq; lia.
   Qed.
 
@@ -220,9 +220,9 @@ Section WithBound.
     - lia.
     - simpl. destruct (Nat.eq_dec k fuel') as [->|Hne].
       + rewrite parray_imap2_aux_get_hi by lia.
-        apply get_set_same_. rewrite Hlen.
+        apply get_set_same_poly. rewrite Hlen.
         apply of_nat_lt_compat; lia.
-      + apply IH; try lia. rewrite length_set_. exact Hlen.
+      + apply IH; try lia. rewrite length_set_poly. exact Hlen.
   Qed.
 
   Lemma parray_imap2_get (f : nat -> N -> N -> N) (a b : array N)
@@ -234,7 +234,7 @@ Section WithBound.
   Proof.
     unfold parray_imap2.
     apply parray_imap2_aux_get with (sz := sz); try lia.
-    rewrite length_make_. rewrite Hleb. reflexivity.
+    rewrite length_make_poly. rewrite Hleb. reflexivity.
   Qed.
 
   (* ============================= BelnapArr bulk operations ============================= *)
@@ -264,7 +264,7 @@ Section WithBound.
   Lemma set_length (arr : array N) (i : int) (v : N) :
     length arr = of_nat (storage_size n) ->
     length (set arr i v) = of_nat (storage_size n).
-  Proof. intro H. rewrite length_set_. exact H. Qed.
+  Proof. intro H. rewrite length_set_poly. exact H. Qed.
 
   Definition ba_set (i : Fin.t n) (b : Belnap) (ba : BelnapArr) : BelnapArr :=
     let bit := bit_index i in
@@ -295,14 +295,14 @@ Section WithBound.
   Proof.
     revert result. induction fuel as [|fuel' IH]; intro result.
     - reflexivity.
-    - simpl. rewrite IH. rewrite !length_set_. reflexivity.
+    - simpl. rewrite IH. rewrite !length_set_poly. reflexivity.
   Qed.
 
   Lemma ba_not_length (ba : BelnapArr) :
     length (parray_swap_aux (store ba) (make (of_nat (storage_size n)) 0%N)
               (words_per_plane n)) = of_nat (storage_size n).
   Proof.
-    rewrite parray_swap_aux_length. rewrite length_make_.
+    rewrite parray_swap_aux_length. rewrite length_make_poly.
     rewrite size_fits_leb. reflexivity.
   Qed.
 
@@ -315,8 +315,8 @@ Section WithBound.
     revert result. induction fuel as [|fuel' IH]; intro result.
     - reflexivity.
     - simpl. rewrite IH by lia.
-      rewrite get_set_other_; [|intro Heq; apply of_nat_inj in Heq; lia].
-      rewrite get_set_other_; [reflexivity|intro Heq; apply of_nat_inj in Heq; lia].
+      rewrite get_set_other_poly; [|intro Heq; apply of_nat_inj in Heq; lia].
+      rewrite get_set_other_poly; [reflexivity|intro Heq; apply of_nat_inj in Heq; lia].
   Qed.
 
   (** After processing all pairs, index [k] has the swapped value. *)
@@ -334,23 +334,23 @@ Section WithBound.
     - simpl.
       destruct (Nat.eq_dec k (2 * fuel')) as [->|Hne_even].
       + rewrite parray_swap_aux_get_hi by lia.
-        rewrite get_set_other_; [|intro Heq; apply of_nat_inj in Heq; lia].
-        rewrite get_set_same_.
+        rewrite get_set_other_poly; [|intro Heq; apply of_nat_inj in Heq; lia].
+        rewrite get_set_same_poly.
         * replace (Nat.even (2 * fuel')) with true
             by (symmetry; apply Nat.even_mul; left; reflexivity).
           reflexivity.
         * rewrite Hlen. apply of_nat_lt_compat; lia.
       + destruct (Nat.eq_dec k (2 * fuel' + 1)) as [->|Hne_odd].
         * rewrite parray_swap_aux_get_hi by lia.
-          rewrite get_set_same_.
+          rewrite get_set_same_poly.
           -- replace (Nat.even (2 * fuel' + 1)) with false.
              ++ replace (2 * fuel' + 1 - 1) with (2 * fuel') by lia. reflexivity.
              ++ symmetry. rewrite Nat.even_add.
                 replace (Nat.even (2 * fuel')) with true
                   by (symmetry; apply Nat.even_mul; left; reflexivity).
                 reflexivity.
-          -- rewrite length_set_. rewrite Hlen. apply of_nat_lt_compat; lia.
-        * apply IH; try lia. rewrite !length_set_. exact Hlen.
+          -- rewrite length_set_poly. rewrite Hlen. apply of_nat_lt_compat; lia.
+        * apply IH; try lia. rewrite !length_set_poly. exact Hlen.
   Qed.
 
   Lemma parray_swap_get (src : array N)
@@ -363,7 +363,7 @@ Section WithBound.
     - unfold storage_size in Hk. rewrite double_eq_mul2 in Hk. lia.
     - pose proof storage_size_lt_wB. lia.
     - exact storage_size_lt_wB.
-    - rewrite length_make_. rewrite size_fits_leb. reflexivity.
+    - rewrite length_make_poly. rewrite size_fits_leb. reflexivity.
   Qed.
 
   Definition ba_not (ba : BelnapArr) : BelnapArr :=
@@ -394,7 +394,7 @@ Section WithBound.
   Proof.
     revert result. induction fuel as [|fuel' IH]; intro result.
     - reflexivity.
-    - simpl. rewrite IH. rewrite !length_set_. reflexivity.
+    - simpl. rewrite IH. rewrite !length_set_poly. reflexivity.
   Qed.
 
   Lemma parray_interleave_length (ev ov : N) :
@@ -402,7 +402,7 @@ Section WithBound.
   Proof.
     unfold parray_interleave.
     rewrite parray_interleave_aux_length.
-    rewrite length_make_. rewrite size_fits_leb. reflexivity.
+    rewrite length_make_poly. rewrite size_fits_leb. reflexivity.
   Qed.
 
   (** High-index preservation: indices at [2*fuel] or above are untouched. *)
@@ -414,8 +414,8 @@ Section WithBound.
     revert result. induction fuel as [|fuel' IH]; intro result.
     - reflexivity.
     - simpl. rewrite IH by lia.
-      rewrite get_set_other_; [|intro Heq; apply of_nat_inj in Heq; lia].
-      rewrite get_set_other_; [reflexivity|intro Heq; apply of_nat_inj in Heq; lia].
+      rewrite get_set_other_poly; [|intro Heq; apply of_nat_inj in Heq; lia].
+      rewrite get_set_other_poly; [reflexivity|intro Heq; apply of_nat_inj in Heq; lia].
   Qed.
 
   (** After processing all pairs [0..fuel-1], index [k] has the interleaved value. *)
@@ -434,23 +434,23 @@ Section WithBound.
       destruct (Nat.eq_dec k (2 * fuel')) as [->|Hne_even].
       + (* k = 2 * fuel', the even index of this pair *)
         rewrite parray_interleave_aux_get_hi by lia.
-        rewrite get_set_other_; [|intro Heq; apply of_nat_inj in Heq; lia].
-        rewrite get_set_same_.
+        rewrite get_set_other_poly; [|intro Heq; apply of_nat_inj in Heq; lia].
+        rewrite get_set_same_poly.
         * replace (Nat.even (2 * fuel')) with true by (symmetry; apply Nat.even_mul; left; reflexivity).
           reflexivity.
         * rewrite Hlen. apply of_nat_lt_compat; lia.
       + destruct (Nat.eq_dec k (2 * fuel' + 1)) as [->|Hne_odd].
         * (* k = 2 * fuel' + 1, the odd index of this pair *)
           rewrite parray_interleave_aux_get_hi by lia.
-          rewrite get_set_same_.
+          rewrite get_set_same_poly.
           -- replace (Nat.even (2 * fuel' + 1)) with false.
              ++ reflexivity.
              ++ symmetry. rewrite Nat.even_add.
                 replace (Nat.even (2 * fuel')) with true by (symmetry; apply Nat.even_mul; left; reflexivity).
                 reflexivity.
-          -- rewrite length_set_. rewrite Hlen. apply of_nat_lt_compat; lia.
+          -- rewrite length_set_poly. rewrite Hlen. apply of_nat_lt_compat; lia.
         * (* k < 2 * fuel', recurse *)
-          apply IH; try lia. rewrite !length_set_. exact Hlen.
+          apply IH; try lia. rewrite !length_set_poly. exact Hlen.
   Qed.
 
   Lemma parray_interleave_get (ev ov : N) (k : nat)
@@ -464,7 +464,7 @@ Section WithBound.
     - unfold storage_size in Hk. rewrite double_eq_mul2 in Hk. lia.
     - pose proof storage_size_lt_wB. lia.
     - exact storage_size_lt_wB.
-    - rewrite length_make_. rewrite size_fits_leb. reflexivity.
+    - rewrite length_make_poly. rewrite size_fits_leb. reflexivity.
   Qed.
 
   Definition ba_all_true : BelnapArr :=
@@ -512,20 +512,20 @@ Section WithBound.
     pose proof (pos_neg_word_fin_neq i) as Hpn.
     destruct (Fin.eq_dec j (neg_word_fin i)) as [Heq_neg|Hne_neg].
     - subst j.
-      rewrite get_set_same_ by (rewrite length_set_; apply Fin_to_int63_in_bounds; exact (hlen ba)).
+      rewrite get_set_same_poly by (rewrite length_set_poly; apply Fin_to_int63_in_bounds; exact (hlen ba)).
       rewrite Vector.nth_replace_eq.
-      rewrite get_set_other_ by (apply Fin_to_int63_neq; exact Hpn).
+      rewrite get_set_other_poly by (apply Fin_to_int63_neq; exact Hpn).
       rewrite <- (Hmod (neg_word_fin i)).
       rewrite Vector.nth_replace_neq by exact (not_eq_sym Hpn).
       reflexivity.
-    - rewrite get_set_other_ by (apply Fin_to_int63_neq; exact (not_eq_sym Hne_neg)).
+    - rewrite get_set_other_poly by (apply Fin_to_int63_neq; exact (not_eq_sym Hne_neg)).
       rewrite Vector.nth_replace_neq by exact Hne_neg.
       destruct (Fin.eq_dec j (pos_word_fin i)) as [Heq_pos|Hne_pos].
       + subst j.
-        rewrite get_set_same_ by (apply Fin_to_int63_in_bounds; exact (hlen ba)).
+        rewrite get_set_same_poly by (apply Fin_to_int63_in_bounds; exact (hlen ba)).
         rewrite Vector.nth_replace_eq.
         rewrite <- (Hmod (pos_word_fin i)). reflexivity.
-      + rewrite get_set_other_ by (apply Fin_to_int63_neq; exact (not_eq_sym Hne_pos)).
+      + rewrite get_set_other_poly by (apply Fin_to_int63_neq; exact (not_eq_sym Hne_pos)).
         rewrite Vector.nth_replace_neq by exact Hne_pos.
         apply Hmod.
   Qed.
