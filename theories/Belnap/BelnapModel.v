@@ -140,7 +140,7 @@ Definition bv_get {n : nat} (i : Fin.t n) (bv : BVec n) : Belnap :=
 
 (** NOTE: N.lnot x 64%N computes the 64-bit bitwise complement of x.
     The explicit width argument 64%N must always be used here; the extraction
-    directive in BelnapExtract.v drops this argument for Int64.lognot. *)
+    directive in BelnapExtraction.v maps N.lnot to xor with (2^width - 1). *)
 Definition bv_set {n : nat} (i : Fin.t n) (b : Belnap) (bv : BVec n) : BVec n :=
   let bit := bit_index i in
   let bitMask := N.lnot (N.shiftl 1%N (N.of_nat bit)) 64%N in
@@ -1174,11 +1174,11 @@ Proof. apply val_inj. simpl. apply bv_and_or_abs. Qed.
 Lemma truth_meetKU {n} (y x : AsTruth n) : truth_join x (truth_meet x y) = x.
 Proof. apply val_inj. simpl. apply bv_or_and_abs. Qed.
 
-HB.instance Definition _ (n : nat) :=
+HB.instance Definition AsTruth_pOrder (n : nat) :=
   Order.Le_isPOrder.Build truth_display (AsTruth n)
     (@truth_le_refl n) (@truth_le_anti n) (@truth_le_trans n).
 
-HB.instance Definition _ (n : nat) :=
+HB.instance Definition AsTruth_lattice (n : nat) :=
   Order.POrder_isLattice.Build truth_display (AsTruth n)
     (@truth_meetC n) (@truth_joinC n)
     (@truth_meetA n) (@truth_joinA n)
@@ -1191,10 +1191,10 @@ Proof. apply/eqP. apply bv_and_all_false_l. Qed.
 Lemma truth_lex1 {n} (x : AsTruth n) : truth_le x (truth_top n).
 Proof. apply/eqP. apply bv_and_all_true_r. Qed.
 
-HB.instance Definition _ (n : nat) :=
+HB.instance Definition AsTruth_hasBottom (n : nat) :=
   Order.hasBottom.Build truth_display (AsTruth n) (@truth_le0x n).
 
-HB.instance Definition _ (n : nat) :=
+HB.instance Definition AsTruth_hasTop (n : nat) :=
   Order.hasTop.Build truth_display (AsTruth n) (@truth_lex1 n).
 
 (* ============================= Knowledge ordering proofs ============================= *)
@@ -1243,19 +1243,19 @@ Proof. apply/eqP. apply bv_consensus_all_unknown_l. Qed.
 Lemma know_lex1 {n} (x : AsKnowledge n) : know_le x (know_top n).
 Proof. apply/eqP. apply bv_consensus_all_both_r. Qed.
 
-HB.instance Definition _ (n : nat) :=
+HB.instance Definition AsKnowledge_pOrder (n : nat) :=
   Order.Le_isPOrder.Build know_display (AsKnowledge n)
     (@know_le_refl n) (@know_le_anti n) (@know_le_trans n).
 
-HB.instance Definition _ (n : nat) :=
+HB.instance Definition AsKnowledge_lattice (n : nat) :=
   Order.POrder_isLattice.Build know_display (AsKnowledge n)
     (@know_meetC n) (@know_joinC n)
     (@know_meetA n) (@know_joinA n)
     (@know_joinKI n) (@know_meetKU n)
     (@know_leEmeet n).
 
-HB.instance Definition _ (n : nat) :=
+HB.instance Definition AsKnowledge_hasBottom (n : nat) :=
   Order.hasBottom.Build know_display (AsKnowledge n) (@know_le0x n).
 
-HB.instance Definition _ (n : nat) :=
+HB.instance Definition AsKnowledge_hasTop (n : nat) :=
   Order.hasTop.Build know_display (AsKnowledge n) (@know_lex1 n).

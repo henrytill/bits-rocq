@@ -164,6 +164,8 @@ let random_arr n =
   !v
 
 let test_lattice_laws () =
+  (* Fixed seed for reproducibility; change to Random.self_init () for exploration *)
+  Random.init 42;
   (* Test with multiple sizes including word boundaries *)
   List.iter
     (fun n ->
